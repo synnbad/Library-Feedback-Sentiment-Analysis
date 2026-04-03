@@ -13,24 +13,24 @@ def test_imports():
     print("\n=== Testing Module Imports ===")
     try:
         import streamlit
-        print(f"✓ Streamlit {streamlit.__version__}")
+        print(f"OK Streamlit {streamlit.__version__}")
         
         from modules import database, csv_handler, pii_detector, report_generator
-        print("✓ Core modules (database, csv_handler, pii_detector, report_generator)")
+        print("OK Core modules (database, csv_handler, pii_detector, report_generator)")
         
         from modules.sentiment_enhanced import EnhancedSentimentAnalyzer
-        print("✓ Enhanced sentiment analyzer")
+        print("OK Enhanced sentiment analyzer")
         
         from modules import qualitative_analysis, quantitative_analysis, visualization
-        print("✓ Analysis modules (qualitative, quantitative, visualization)")
+        print("OK Analysis modules (qualitative, quantitative, visualization)")
         
         import torch
         import transformers
-        print(f"✓ PyTorch {torch.__version__}, Transformers {transformers.__version__}")
+        print(f"OK PyTorch {torch.__version__}, Transformers {transformers.__version__}")
         
         return True
     except Exception as e:
-        print(f"✗ Import failed: {e}")
+        print(f"FAIL Import failed: {e}")
         traceback.print_exc()
         return False
 
@@ -50,11 +50,11 @@ def test_enhanced_sentiment():
         
         for text in test_cases:
             result = analyzer.analyze_sentiment(text)
-            print(f"✓ {result['sentiment']:8s} ({result['confidence']:5.1f}%) - {text[:40]}")
+        print(f"OK {result['sentiment']:8s} ({result['confidence']:5.1f}%) - {text[:40]}")
         
         return True
     except Exception as e:
-        print(f"✗ Enhanced sentiment test failed: {e}")
+        print(f"FAIL Enhanced sentiment test failed: {e}")
         traceback.print_exc()
         return False
 
@@ -67,14 +67,14 @@ def test_qualitative_analysis():
         test_text = "The library staff was very helpful and friendly"
         result = analyze_sentiment(test_text)
         
-        print(f"✓ Sentiment: {result['sentiment']}")
+        print(f"OK Sentiment: {result['sentiment']}")
         print(f"  Score: {result['score']:.3f}")
         if 'confidence' in result:
             print(f"  Confidence: {result['confidence']:.1f}%")
         
         return True
     except Exception as e:
-        print(f"✗ Qualitative analysis test failed: {e}")
+        print(f"FAIL Qualitative analysis test failed: {e}")
         traceback.print_exc()
         return False
 
@@ -86,12 +86,12 @@ def test_database():
         from pathlib import Path
         
         db_path = Path("data/library.db")
-        print(f"✓ Database path: {db_path}")
+        print(f"OK Database path: {db_path}")
         print(f"  Exists: {db_path.exists()}")
         
         return True
     except Exception as e:
-        print(f"✗ Database test failed: {e}")
+        print(f"FAIL Database test failed: {e}")
         traceback.print_exc()
         return False
 
@@ -105,13 +105,13 @@ def test_pii_detector():
         pii_found = detect_pii(test_text)
         redacted = redact_pii(test_text)
         
-        print(f"✓ PII detection working")
+        print(f"OK PII detection working")
         print(f"  Found {len(pii_found)} PII items")
         print(f"  Redacted: {redacted[:50]}...")
         
         return True
     except Exception as e:
-        print(f"✗ PII detector test failed: {e}")
+        print(f"FAIL PII detector test failed: {e}")
         traceback.print_exc()
         return False
 
@@ -121,12 +121,12 @@ def test_streamlit_app():
     try:
         # Just check if it can be imported without running
         import streamlit_app
-        print("✓ Streamlit app imports successfully")
+        print("OK Streamlit app imports successfully")
         print("  Note: Authentication disabled (auto-login enabled)")
         
         return True
     except Exception as e:
-        print(f"✗ Streamlit app test failed: {e}")
+        print(f"FAIL Streamlit app test failed: {e}")
         traceback.print_exc()
         return False
 
@@ -151,7 +151,7 @@ def main():
     
     for test_name, passed in results.items():
         status = "PASS" if passed else "FAIL"
-        symbol = "✓" if passed else "✗"
+        symbol = "OK" if passed else "FAIL"
         print(f"{symbol} {test_name:30s} {status}")
     
     total = len(results)
@@ -160,12 +160,12 @@ def main():
     print(f"\nTotal: {passed}/{total} tests passed")
     
     if passed == total:
-        print("\n✓ All tests passed! System is ready for GitHub commit.")
+        print("\nOK All tests passed! System is ready for GitHub commit.")
         print("\nTo start the application:")
         print("  streamlit run streamlit_app.py")
         return 0
     else:
-        print(f"\n✗ {total - passed} test(s) failed. Please review errors above.")
+        print(f"\nFAIL {total - passed} test(s) failed. Please review errors above.")
         return 1
 
 if __name__ == "__main__":

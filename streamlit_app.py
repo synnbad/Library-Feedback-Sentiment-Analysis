@@ -194,7 +194,7 @@ def show_data_upload_page():
                 "usage": "Usage statistics with dates and metrics (visits, sessions, etc.). Any column structure is accepted.",
                 "circulation": "Circulation data with checkout information. Any column structure is accepted."
             }
-            st.caption(f"ℹ️ {dataset_info[dataset_type]}")
+            st.caption(f"Info: {dataset_info[dataset_type]}")
             
             # Dataset name
             dataset_name = st.text_input(

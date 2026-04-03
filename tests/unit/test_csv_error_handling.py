@@ -316,7 +316,7 @@ class TestEdgeCases:
     def test_csv_with_special_characters(self):
         """Test CSV with special characters in data."""
         # Note: StringIO with triple quotes adds leading whitespace
-        csv_content = 'response_date,question,response_text\n2024-01-15,"How satisfied?","Very satisfied! 😊"\n2024-01-16,"What\'s needed?","More spaces & resources"'
+        csv_content = 'response_date,question,response_text\n2024-01-15,"How satisfied?","Very satisfied!"\n2024-01-16,"What\'s needed?","More spaces & resources"'
         
         file = StringIO(csv_content)
         is_valid, error = csv_handler.validate_csv(file, "survey")
