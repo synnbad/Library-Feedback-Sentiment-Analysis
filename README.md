@@ -113,7 +113,7 @@ python scripts/init_app.py
 This will:
 - Create the SQLite database with all required tables
 - Create a default admin user (username: `admin`, password: `admin123`)
-- ⚠️ **Important**: Change the default password after first login!
+-  **Important**: Change the default password after first login!
 
 ### 7. Run Application
 
@@ -389,9 +389,7 @@ This system is designed around the principle that **AI should augment human expe
 - Maintain ethical considerations documentation for sensitive datasets
 - Follow your institution's data retention and deletion policies
 
-## License
 
-[Your License Here]
 
 ## Acknowledgments
 
@@ -407,6 +405,3 @@ This system demonstrates a human-centered approach to AI-augmented library asses
 
 Built to demonstrate that AI can enhance library assessment while keeping human expertise and judgment at the center of decision-making.
 
-## Support
-
-For issues or questions, please [create an issue](link-to-issues) or contact [your-email].
