@@ -1,4 +1,4 @@
-# User Guide: FERPA-Compliant RAG Decision Support System
+# User Guide: Library Assessment Decision Support System
 
 ## Table of Contents
 
@@ -8,7 +8,7 @@
 4. [Getting Started](#getting-started)
 5. [CSV Format Requirements](#csv-format-requirements)
 6. [Feature Guide](#feature-guide)
-7. [FERPA Compliance and Data Privacy](#ferpa-compliance-and-data-privacy)
+7. [Data Privacy & Compliance](#data-privacy--compliance)
 8. [Troubleshooting](#troubleshooting)
 9. [Frequently Asked Questions](#frequently-asked-questions)
 
@@ -16,27 +16,30 @@
 
 ## Introduction
 
-The FERPA-Compliant RAG Decision Support System is an AI-powered library assessment assistant designed to help library staff analyze survey responses, usage statistics, and circulation data. The system uses natural language processing and machine learning to provide insights while maintaining strict FERPA compliance through local-only processing.
+The Library Assessment Decision Support System is an AI-augmented assessment tool designed to help library professionals analyze patron feedback, usage patterns, and service effectiveness through a human-in-the-loop approach. The system combines quantitative and qualitative analysis with natural language querying to support data-driven decision-making.
 
 ### Key Features
 
-- **Manual CSV Data Upload**: Upload survey responses, usage statistics, and circulation data
-- **Natural Language Queries**: Ask questions about your data in plain English
-- **Qualitative Analysis**: Automated sentiment analysis and theme identification
-- **Report Generation**: Create comprehensive reports with statistics and visualizations
-- **Data Visualization**: Generate bar charts, line charts, and pie charts
-- **FERPA Compliance**: All processing happens locally—no data leaves your computer
-- **FAIR & CARE Principles**: Responsible data governance and metadata management
+- **Multi-Source Data Integration**: Upload and analyze data from multiple sources (surveys, usage stats, circulation)
+- **Natural Language Queries**: Ask questions about your data in plain English across all datasets
+- **Qualitative Analysis**: Automated sentiment analysis and theme identification from open-ended responses
+- **Quantitative Analysis**: Advanced statistical analysis (correlation, trends, comparisons, distributions) with AI-powered interpretations
+- **Report Generation**: Create comprehensive reports combining quantitative and qualitative insights
+- **Data Visualization**: Generate accessible charts (bar, line, pie, heatmaps, trend charts)
+- **Human-in-the-Loop**: All AI insights presented for human review and validation
+- **Privacy & Compliance**: FERPA-compliant with local-only processing, FAIR & CARE principles
 
 ### Who Should Use This System
 
 This system is designed for:
+
 - Library Assessment Specialists
 - Library Administrators
 - Library Staff involved in data analysis
+- Branch Managers comparing performance
 - Anyone responsible for library assessment and reporting
 
-No technical expertise is required—the system is designed to be user-friendly for non-technical users.
+No technical expertise is required—the system is designed to be user-friendly for non-technical users while providing advanced statistical capabilities.
 
 ---
 
@@ -457,7 +460,158 @@ The system automatically identifies recurring themes in your survey responses us
 - **Review quotes**: Representative quotes help validate the identified themes
 - **Export results**: Save analysis results for inclusion in reports
 
-### 4. Visualizations
+### 4. Quantitative Analysis
+
+The Quantitative Analysis page provides advanced statistical analysis with AI-powered interpretations for numeric data.
+
+#### How to Perform Quantitative Analysis
+
+1. **Navigate to Quantitative Analysis** using the sidebar menu
+2. **Select a dataset** from the dropdown
+3. **Choose an analysis type**:
+   - **Correlation Analysis**: Find relationships between variables
+   - **Trend Analysis**: Analyze patterns over time with forecasting
+   - **Comparative Analysis**: Compare metrics across groups
+   - **Distribution Analysis**: Examine distributions and detect outliers
+4. **Configure parameters** for the selected analysis type
+5. **Click "Run Analysis"**
+6. **View results**:
+   - Statistical results (tables, metrics)
+   - AI-generated interpretation (plain language explanation)
+   - Contextual insights about patterns
+   - Actionable recommendations
+   - Interactive visualizations
+7. **Export results** as CSV or JSON
+
+#### Analysis Types Explained
+
+**Correlation Analysis**
+
+Identifies relationships between numeric variables.
+
+- **When to use**: To understand how different metrics relate to each other
+- **Methods available**:
+  - Pearson: For linear relationships (normal data)
+  - Spearman: For monotonic relationships (non-normal data)
+  - Kendall: For ordinal data or small samples
+- **Example questions**:
+  - "Is there a relationship between program attendance and satisfaction scores?"
+  - "Do gate counts correlate with circulation numbers?"
+  - "How do different usage metrics relate to each other?"
+- **Results include**:
+  - Correlation matrix
+  - Top correlations with significance testing
+  - Correlation heatmap visualization
+  - AI interpretation of relationships
+
+**Trend Analysis**
+
+Analyzes patterns over time and forecasts future values.
+
+- **When to use**: To understand how metrics change over time
+- **Features**:
+  - Linear regression for trend detection
+  - Moving averages (7-day and 30-day)
+  - Seasonal pattern detection
+  - 7-period forecast with confidence intervals
+- **Example questions**:
+  - "How has circulation changed over the past year?"
+  - "What are the usage trends for digital resources?"
+  - "Can we forecast next month's gate count?"
+- **Results include**:
+  - Trend direction (increasing, decreasing, stable)
+  - Trend strength (R-squared)
+  - Forecast values with confidence intervals
+  - Trend chart with forecast visualization
+  - AI interpretation of trends and implications
+
+**Comparative Analysis**
+
+Compares metrics across different groups or categories.
+
+- **When to use**: To compare performance across branches, time periods, or categories
+- **Tests available**:
+  - t-test: Compare two groups (parametric)
+  - Mann-Whitney: Compare two groups (non-parametric)
+  - ANOVA: Compare three or more groups (parametric)
+  - Kruskal-Wallis: Compare three or more groups (non-parametric)
+- **Example questions**:
+  - "Do satisfaction scores differ across branches?"
+  - "Is there a difference in usage between weekdays and weekends?"
+  - "How do different patron types compare in their library use?"
+- **Results include**:
+  - Test statistics and p-values
+  - Effect sizes (Cohen's d)
+  - Group statistics (means, standard deviations)
+  - Post-hoc pairwise comparisons
+  - Comparison visualization
+  - AI interpretation of differences
+
+**Distribution Analysis**
+
+Examines data distributions and detects outliers.
+
+- **When to use**: To understand data spread and identify unusual values
+- **Methods available**:
+  - IQR method: Robust to skewed data
+  - Z-score method: Assumes normal distribution
+- **Features**:
+  - Skewness and kurtosis calculations
+  - Normality testing (Shapiro-Wilk)
+  - Outlier detection and severity scoring
+  - Quartile calculations
+- **Example questions**:
+  - "Are there any unusual circulation patterns?"
+  - "What is the distribution of satisfaction scores?"
+  - "Which data points are outliers and should be investigated?"
+- **Results include**:
+  - Distribution statistics
+  - Normality test results
+  - Outlier list with severity scores
+  - Distribution histogram with outliers highlighted
+  - AI interpretation of distribution characteristics
+
+#### Understanding AI-Generated Content
+
+Each analysis includes three types of AI-generated content:
+
+1. **Interpretation**: Plain-language explanation of the statistical results
+   - What the numbers mean
+   - Statistical significance explained
+   - Practical implications
+
+2. **Insights**: Contextual observations about patterns in your data
+   - Specific data points and statistics
+   - Cross-dataset relationships
+   - Notable patterns or trends
+
+3. **Recommendations**: Actionable suggestions based on the analysis
+   - Specific actions to take
+   - Grounded in your actual data
+   - Prioritized by importance
+
+**Important**: All AI-generated content is presented for human review and validation. You should verify insights against your domain expertise before acting on recommendations.
+
+#### Tips for Better Quantitative Analysis
+
+- **Minimum data**: At least 10-20 observations for meaningful analysis
+- **Clean data**: Remove missing values or handle them appropriately
+- **Choose appropriate methods**: The system recommends methods based on your data characteristics
+- **Validate assumptions**: Review normality tests and method assumptions
+- **Cross-reference results**: Compare quantitative findings with qualitative feedback
+- **Save analyses**: All analyses are stored in the database for future reference
+- **Export for sharing**: Download results to share with stakeholders
+
+#### Statistical Method Selection
+
+The system helps you choose appropriate statistical methods:
+
+- **Automatic recommendations**: Based on data characteristics and normality tests
+- **Method assumptions**: Clear explanations of what each method assumes
+- **Alternative suggestions**: Non-parametric alternatives when assumptions are violated
+- **Assumption validation**: Automatic checking of normality and other requirements
+
+### 5. Visualizations
 
 The Visualizations page allows you to create charts from your data.
 
@@ -517,6 +671,7 @@ The Report Generation page creates comprehensive reports combining statistics, n
 3. **Choose options**:
    - Include visualizations (recommended)
    - Include qualitative analysis (if available)
+   - Include quantitative analysis (if available)
 4. **Click "Generate Report"**
 5. **Review the report preview**
 6. **Export the report**:
@@ -553,7 +708,13 @@ A typical report includes:
    - Identified themes
    - Representative quotes
 
-6. **Data Source Citations**
+6. **Quantitative Analysis** (if performed)
+   - Statistical results (correlations, trends, comparisons, distributions)
+   - AI-generated interpretations
+   - Contextual insights
+   - Actionable recommendations
+
+7. **Data Source Citations**
    - List of all datasets used
    - Upload dates
    - Data provenance
@@ -591,7 +752,7 @@ This page is informational and helps you understand how the system protects your
 
 ---
 
-## FERPA Compliance and Data Privacy
+## Data Privacy & Compliance
 
 ### What is FERPA?
 

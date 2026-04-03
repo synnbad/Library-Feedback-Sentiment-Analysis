@@ -23,7 +23,8 @@ Database Schema:
 - access_logs: Audit trail of all access events
 - query_logs: RAG query history with performance metrics
 - reports: Generated report metadata
-- qualitative_analyses: Analysis results
+- qualitative_analyses: Qualitative analysis results
+- quantitative_analyses: Quantitative analysis results with LLM interpretations
 - schema_version: Migration tracking
 
 Module Functions:
@@ -238,6 +239,22 @@ def init_database(db_path: Optional[str] = None) -> None:
         )
     """)
     
+    # Create quantitative_analyses table
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS quantitative_analyses (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            dataset_id INTEGER NOT NULL,
+            analysis_type TEXT NOT NULL,
+            parameters TEXT,
+            statistical_results TEXT,
+            interpretation TEXT,
+            insights TEXT,
+            recommendations TEXT,
+            timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (dataset_id) REFERENCES datasets(id) ON DELETE CASCADE
+        )
+    """)
+    
     # Create indexes for performance
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_datasets_type ON datasets(dataset_type)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_query_logs_timestamp ON query_logs(timestamp)")
@@ -245,6 +262,8 @@ def init_database(db_path: Optional[str] = None) -> None:
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_access_logs_timestamp ON access_logs(timestamp)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_survey_responses_dataset ON survey_responses(dataset_id)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_usage_statistics_dataset ON usage_statistics(dataset_id)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_quantitative_analyses_dataset ON quantitative_analyses(dataset_id)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_quantitative_analyses_type ON quantitative_analyses(analysis_type)")
     
     # Create schema_version table for migrations
     cursor.execute("""

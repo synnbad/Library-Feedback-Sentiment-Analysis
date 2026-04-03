@@ -1,16 +1,54 @@
-# FERPA-Compliant RAG Decision Support System (MVP)
+# Library Assessment Decision Support System
 
-An AI-powered library assessment assistant that demonstrates core AI/NLP capabilities while maintaining FERPA compliance through local-only processing. Built as a course final project (4-6 week timeline).
+An AI-augmented assessment tool that helps library professionals analyze patron feedback, usage patterns, and service effectiveness through a **human-in-the-loop** approach. The system combines quantitative and qualitative analysis with natural language querying to support data-driven decision-making while keeping humans at the center of the assessment process.
 
-## Features
+## Overview
 
-- **Manual CSV Data Upload**: Upload survey responses, usage statistics, and circulation data
-- **RAG-Powered Queries**: Ask questions in natural language and get answers with citations
-- **Qualitative Analysis**: Automated sentiment analysis and theme identification
-- **Report Generation**: Generate reports with statistics, narrative text, and visualizations
-- **Data Visualization**: Create bar, line, and pie charts with accessible color schemes
-- **FERPA Compliance**: All processing happens locally via Ollama - no external API calls
-- **FAIR & CARE Principles**: Implements responsible data governance practices
+This system is designed to **augment, not replace** human expertise in library assessment. It provides:
+
+- **Multi-Source Data Integration**: Combine survey responses, usage statistics, circulation data, and other sources for comprehensive analysis
+- **Cross-Dataset Insights**: Identify patterns and relationships across different data sources
+- **Intelligent Analysis**: AI-powered insights that synthesize information from multiple datasets
+- **Natural Language Interaction**: Ask questions that span multiple data sources and get unified, contextual answers
+- **Human-Centered Workflow**: All AI-generated insights are presented as recommendations for human review and validation
+- **Transparent Reasoning**: Every answer includes citations and confidence scores so you can verify the analysis
+- **Local Processing**: Complete data privacy with no external API calls - your data never leaves your infrastructure
+
+## Key Features
+
+### Multi-Source Data Integration
+- **Flexible Data Upload**: Import data from multiple sources - survey responses, usage statistics, circulation records, and more
+- **Cross-Dataset Analysis**: Correlate patterns across different data sources (e.g., link satisfaction scores with usage trends)
+- **Unified Querying**: Ask questions that span multiple datasets and get synthesized answers
+- **Relationship Discovery**: Automatically identify connections between different data sources
+- **Temporal Integration**: Analyze how different metrics evolve together over time
+
+### Analysis Capabilities
+- **Quantitative Analysis**: Correlation analysis, trend forecasting, comparative statistics, and distribution analysis with LLM-powered interpretations
+- **Qualitative Analysis**: Automated sentiment analysis and theme identification from open-ended survey responses
+- **RAG-Powered Queries**: Ask questions in natural language and get answers grounded in your actual data with citations
+- **Statistical Insights**: Advanced statistical methods with plain-language explanations for non-technical stakeholders
+- **Cross-Source Synthesis**: Generate insights that combine quantitative metrics with qualitative feedback
+
+### Human-in-the-Loop Design
+- **Review & Validate**: All AI-generated insights are presented for human review before action
+- **Contextual Recommendations**: Actionable suggestions based on your data, not generic advice
+- **Audit Trail**: Complete logging of all analyses and queries for transparency and accountability
+- **Expert Augmentation**: Designed to enhance librarian expertise, not replace professional judgment
+
+### Data Management & Visualization
+- **Flexible Data Upload**: Support for any CSV format - no column restructuring required! Works with Qualtrics, ILS exports, PLS data, and custom formats
+- **Auto-Fill Metadata**: Automatically detect and populate FAIR/CARE metadata fields from uploaded datasets
+- **Interactive Visualizations**: Create accessible charts (bar, line, pie, heatmaps, trend charts) with WCAG AA compliant colors
+- **Comprehensive Reports**: Generate reports combining statistics, narrative insights, and visualizations
+- **FAIR & CARE Metadata**: Rich metadata support for responsible data governance
+
+### Privacy & Compliance Features
+- **FERPA Compliant**: All processing happens locally via Ollama - no external API calls or cloud services
+- **PII Detection & Redaction**: Automatic detection and redaction of personally identifiable information
+- **Local-Only Processing**: Your data stays on your infrastructure at all times
+- **FAIR Principles**: Findable, Accessible, Interoperable, and Reusable data practices
+- **CARE Principles**: Collective benefit, Authority to control, Responsibility, and Ethics in data governance
 
 ## System Requirements
 
@@ -93,10 +131,13 @@ The application will open in your browser at `http://localhost:8501`
 ├── modules/                   # Core Python modules
 │   ├── auth.py               # Authentication
 │   ├── csv_handler.py        # CSV upload and validation
-│   ├── rag_query.py          # RAG query engine
+│   ├── database.py           # Multi-source data storage
+│   ├── rag_query.py          # Cross-dataset RAG query engine
 │   ├── qualitative_analysis.py  # Sentiment and theme analysis
-│   ├── report_generator.py  # Report generation
-│   └── visualization.py      # Chart generation
+│   ├── quantitative_analysis.py # Statistical analysis with LLM interpretations
+│   ├── report_generator.py  # Multi-source report generation
+│   ├── visualization.py      # Chart generation
+│   └── pii_detector.py       # PII detection and redaction
 ├── config/                    # Configuration
 │   └── settings.py           # System settings
 ├── data/                      # Data storage
@@ -110,49 +151,75 @@ The application will open in your browser at `http://localhost:8501`
 └── README.md                 # This file
 ```
 
-## Usage
+## Usage Workflow
 
-### 1. Login
+The system follows a human-centered assessment workflow:
 
-Use the credentials you created during setup.
+### 1. Login & Authentication
 
-### 2. Upload Data
+Use the credentials you created during setup. The system maintains an audit trail of all access for accountability.
+
+### 2. Upload & Curate Data
 
 - Navigate to "Data Upload" page
 - Select dataset type (survey, usage, circulation)
-- Upload CSV file
-- Add FAIR/CARE metadata (title, description, source, etc.)
+- Upload CSV file with your library data
+- Add FAIR/CARE metadata (title, description, source, ethical considerations)
+- Review automated PII detection warnings
 - Preview and confirm upload
 
-### 3. Query Data
+### 3. Explore with Natural Language Queries
 
 - Navigate to "Query Interface" page
-- Type natural language questions
-- View answers with citations
-- Ask follow-up questions (context maintained)
+- Ask questions about your data in plain English, including cross-dataset queries:
+  - "What are the main themes in patron feedback?"
+  - "How has circulation changed over the past year?"
+  - "Which services have the highest satisfaction scores?"
+  - "Is there a correlation between program attendance and satisfaction ratings?"
+  - "How do usage patterns differ across branches?"
+- Review answers with citations to verify against source data
+- Ask follow-up questions (conversation context is maintained)
+- Validate AI responses against your domain expertise
+- Query across multiple datasets simultaneously for comprehensive insights
 
-### 4. Analyze Qualitative Data
+### 4. Perform Quantitative Analysis
+
+- Navigate to "Quantitative Analysis" page
+- Select analysis type:
+  - **Correlation**: Identify relationships between metrics
+  - **Trend**: Analyze patterns over time with forecasting
+  - **Comparative**: Compare performance across branches, time periods, or categories
+  - **Distribution**: Detect outliers and analyze data distributions
+- Review statistical results and LLM-generated interpretations
+- Validate recommendations against operational context
+- Export results for further analysis
+
+### 5. Analyze Qualitative Feedback
 
 - Navigate to "Qualitative Analysis" page
-- Select dataset with text responses
-- View sentiment distribution
-- Explore identified themes
+- Select dataset with text responses (surveys, comments)
+- Review automated sentiment analysis
+- Explore identified themes and representative quotes
+- Validate theme accuracy and relevance
 - Export analysis results
 
-### 5. Generate Reports
+### 6. Generate Assessment Reports
 
 - Navigate to "Report Generation" page
-- Select datasets to include
-- Choose whether to include visualizations
-- Generate and preview report
-- Export as PDF or Markdown
+- Select multiple datasets and analyses to include
+- Choose report components (statistics, visualizations, qualitative insights, quantitative analysis)
+- System automatically synthesizes insights across data sources
+- Preview AI-generated narrative sections that integrate findings
+- Edit and refine report content based on your expertise
+- Export as PDF or Markdown for stakeholder distribution
 
-### 6. Create Visualizations
+### 7. Create Custom Visualizations
 
 - Navigate to "Visualization" page
 - Select dataset and chart type
-- Choose columns for axes
-- View and export charts
+- Choose columns and configure display options
+- Review accessibility compliance (WCAG AA)
+- Export charts for presentations or reports
 
 ## CSV Format Requirements
 
@@ -167,18 +234,63 @@ Required columns: `checkout_date`, `material_type`, `patron_type`
 
 See USER_GUIDE.md for detailed format specifications.
 
-## FAIR & CARE Principles
+## Multi-Source Integration Examples
 
-This system implements:
+The system is designed to integrate and analyze data from multiple sources simultaneously:
 
-- **Findable**: Rich metadata, data manifest, searchable fields
-- **Accessible**: Export functionality, clear access documentation
-- **Interoperable**: Standard formats (CSV/JSON), documented schema
-- **Reusable**: Provenance tracking, usage notes, source attribution
-- **Collective Benefit**: Usage notes explain community value
-- **Authority to Control**: User controls data lifecycle, local processing
-- **Responsibility**: Provenance tracking, audit logging, ethical considerations
-- **Ethics**: Privacy protections, ethical use documentation, FERPA compliance
+### Example 1: Satisfaction + Usage Correlation
+- Upload survey data with satisfaction scores
+- Upload usage statistics with visit counts
+- Run correlation analysis to identify if satisfaction correlates with usage
+- Generate insights: "Higher satisfaction scores are associated with increased program attendance"
+
+### Example 2: Cross-Branch Comparison
+- Upload circulation data from multiple branches
+- Upload survey responses by branch
+- Compare performance across locations
+- Identify best practices: "Branch A has higher satisfaction - what are they doing differently?"
+
+### Example 3: Temporal Pattern Analysis
+- Upload monthly usage statistics over 2 years
+- Upload quarterly survey responses
+- Analyze trends across both datasets
+- Forecast future needs: "Usage is increasing but satisfaction is declining - capacity issue?"
+
+### Example 4: Service Impact Assessment
+- Upload pre-program and post-program survey data
+- Upload usage statistics before and after service changes
+- Perform comparative analysis
+- Measure impact: "New hours increased usage by 25% and satisfaction by 15%"
+
+### Example 5: Comprehensive Assessment
+- Combine survey responses, circulation data, program attendance, and digital resource usage
+- Ask: "What factors most influence patron satisfaction?"
+- System analyzes correlations across all datasets
+- Generate holistic recommendations based on multi-source insights
+
+The RAG query engine automatically searches across all uploaded datasets to provide comprehensive answers grounded in your complete data landscape.
+
+## Data Privacy & Compliance
+
+### FERPA Compliance
+- **Local Processing Only**: All AI/LLM processing happens on your local infrastructure via Ollama
+- **No External APIs**: Zero external API calls - your data never leaves your control
+- **PII Protection**: Automatic detection and redaction of personally identifiable information
+- **Audit Logging**: Complete audit trail of all data access and analysis operations
+
+### FAIR Data Principles
+- **Findable**: Rich metadata fields, searchable datasets, data manifest generation
+- **Accessible**: Multiple export formats (CSV, JSON, PDF, Markdown), clear documentation
+- **Interoperable**: Standard formats, documented schema, API-ready structure
+- **Reusable**: Provenance tracking, usage notes, source attribution, clear licensing
+
+### CARE Data Principles
+- **Collective Benefit**: Usage notes document how data serves community interests
+- **Authority to Control**: Users maintain complete control over data lifecycle and access
+- **Responsibility**: Provenance tracking, ethical considerations documentation, responsible use guidelines
+- **Ethics**: Privacy protections, ethical use documentation, transparent AI decision-making
+
+These principles are implemented as **features** to support responsible data governance, not as constraints on functionality.
 
 ## Testing
 
@@ -230,13 +342,52 @@ mypy modules/
 - Delete `data/library.db` and reinitialize
 - Run: `python -c "from modules.database import init_database; init_database()"`
 
-## Security Notes
+## Human-in-the-Loop Philosophy
 
-- Change default admin password immediately after setup
-- Store database file (`data/library.db`) securely
-- Regularly backup data directory
-- Review access logs in `access_logs` table
+This system is designed around the principle that **AI should augment human expertise, not replace it**:
+
+### AI as Assistant, Not Authority
+- All AI-generated insights are presented as **recommendations** for human review
+- Statistical interpretations include confidence levels and limitations
+- Citations and source data are always provided for verification
+- Professional librarian judgment remains central to decision-making
+
+### Transparency & Explainability
+- Every AI response includes citations to source data
+- Statistical methods and assumptions are clearly explained
+- Confidence scores help you assess reliability
+- Complete audit trail of all analyses and queries
+
+### Validation Workflow
+1. **AI Analyzes**: System processes data and generates insights
+2. **Human Reviews**: You examine results, check citations, validate against context
+3. **Human Decides**: You make final decisions based on AI insights + your expertise
+4. **System Documents**: All decisions and rationale are logged for accountability
+
+### When to Trust AI vs. Human Judgment
+- **Trust AI for**: Pattern detection, statistical calculations, large-scale text analysis, citation retrieval
+- **Trust Humans for**: Contextual interpretation, policy decisions, stakeholder communication, ethical considerations
+- **Best Together**: AI finds patterns, humans determine meaning and action
+
+## Security & Best Practices
+
+### Initial Setup
+- Change default admin password immediately after first login
+- Store database file (`data/library.db`) securely with appropriate file permissions
+- Regularly backup data directory to prevent data loss
+- Review access logs in `access_logs` table periodically
+
+### Operational Security
 - All data processing happens locally - no external API calls
+- PII detection runs automatically on all text inputs and outputs
+- Audit trail captures all data access and analysis operations
+- User authentication required for all system access
+
+### Data Governance
+- Document data sources and provenance in FAIR/CARE metadata
+- Review and validate AI-generated insights before acting on them
+- Maintain ethical considerations documentation for sensitive datasets
+- Follow your institution's data retention and deletion policies
 
 ## License
 
@@ -244,13 +395,17 @@ mypy modules/
 
 ## Acknowledgments
 
-Built as a course final project demonstrating:
-- Local LLM deployment (Ollama)
-- RAG implementation (ChromaDB + sentence-transformers)
-- NLP analysis (TextBlob)
-- Data visualization (Plotly)
-- FERPA-compliant data handling
-- FAIR & CARE data governance principles
+This system demonstrates a human-centered approach to AI-augmented library assessment, incorporating:
+- **Local LLM deployment** (Ollama with Llama 3.2)
+- **RAG implementation** (ChromaDB + sentence-transformers)
+- **Advanced statistical analysis** (scipy, statsmodels) with LLM-powered interpretations
+- **NLP analysis** (TextBlob for sentiment, TF-IDF for themes)
+- **Accessible data visualization** (Plotly with WCAG AA compliance)
+- **Privacy-preserving AI** (FERPA-compliant local processing)
+- **Responsible data governance** (FAIR & CARE principles)
+- **Human-in-the-loop design** (AI augmentation, not replacement)
+
+Built to demonstrate that AI can enhance library assessment while keeping human expertise and judgment at the center of decision-making.
 
 ## Support
 

@@ -98,50 +98,84 @@ from modules.csv_handler import update_data_provenance
 from modules.pii_detector import redact_pii, redact_pii_from_list
 from config.settings import Settings
 
+# Try to import enhanced sentiment analyzer
+try:
+    from modules.sentiment_enhanced import analyze_sentiment as analyze_sentiment_enhanced
+    from modules.sentiment_enhanced import analyze_dataset_sentiment as analyze_dataset_sentiment_enhanced
+    ENHANCED_SENTIMENT_AVAILABLE = True
+    print("Enhanced sentiment analysis (RoBERTa) available")
+except ImportError:
+    ENHANCED_SENTIMENT_AVAILABLE = False
+    print("Enhanced sentiment analysis not available. Using TextBlob as fallback.")
+    print("To enable: pip install transformers torch")
+
 
 def analyze_sentiment(text: str) -> Dict[str, Any]:
     """
-    Analyze sentiment of a single text using TextBlob.
+    Analyze sentiment of a single text using enhanced RoBERTa model (with TextBlob fallback).
     
     Args:
         text: Text to analyze
         
     Returns:
-        Dict with keys: polarity, subjectivity, category, error (optional)
+        Dict with keys: sentiment, score, confidence (if available), polarity, subjectivity, category
     """
     if not text or pd.isna(text):
         return {
+            "sentiment": "neutral",
+            "score": 0.0,
             "polarity": 0.0,
             "subjectivity": 0.0,
             "category": "neutral"
         }
     
     try:
-        blob = TextBlob(str(text))
-        polarity = blob.sentiment.polarity
-        subjectivity = blob.sentiment.subjectivity
-        
-        # Categorize sentiment
-        if polarity > Settings.SENTIMENT_POSITIVE_THRESHOLD:
-            category = "positive"
-        elif polarity < Settings.SENTIMENT_NEGATIVE_THRESHOLD:
-            category = "negative"
+        # Try enhanced sentiment first
+        if ENHANCED_SENTIMENT_AVAILABLE:
+            from modules.sentiment_enhanced import analyze_sentiment as enhanced_analyze
+            result = enhanced_analyze(str(text))
+            
+            # Also get TextBlob for subjectivity
+            blob = TextBlob(str(text))
+            
+            return {
+                "sentiment": result['sentiment'],
+                "score": result['score'],
+                "confidence": result['confidence'],
+                "polarity": result['score'],  # Map score to polarity for compatibility
+                "subjectivity": blob.sentiment.subjectivity,
+                "category": result['sentiment']  # For backward compatibility
+            }
         else:
-            category = "neutral"
-        
-        return {
-            "polarity": polarity,
-            "subjectivity": subjectivity,
-            "category": category
-        }
+            # Fallback to TextBlob
+            blob = TextBlob(str(text))
+            polarity = blob.sentiment.polarity
+            subjectivity = blob.sentiment.subjectivity
+            
+            # Categorize sentiment
+            if polarity > Settings.SENTIMENT_POSITIVE_THRESHOLD:
+                category = "positive"
+            elif polarity < Settings.SENTIMENT_NEGATIVE_THRESHOLD:
+                category = "negative"
+            else:
+                category = "neutral"
+            
+            return {
+                "sentiment": category,
+                "score": polarity,
+                "polarity": polarity,
+                "subjectivity": subjectivity,
+                "category": category
+            }
     except Exception as e:
-        # Handle TextBlob processing errors
-        # Return neutral sentiment and flag the error
+        # Handle processing errors
         return {
+            "sentiment": "neutral",
+            "score": 0.0,
             "polarity": 0.0,
             "subjectivity": 0.0,
             "category": "neutral",
-            "error": f"TextBlob processing error: {str(e)}"
+            "error": f"Sentiment analysis error: {str(e)}"
         }
 
 

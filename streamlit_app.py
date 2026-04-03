@@ -14,7 +14,7 @@ from modules import auth
 # Page configuration
 st.set_page_config(
     page_title="Library Assessment Assistant",
-    page_icon="📚",
+    page_icon=None,
     layout="wide",
     initial_sidebar_state="expanded"
 )
@@ -22,7 +22,7 @@ st.set_page_config(
 
 def show_login_page():
     """Display login page with authentication form."""
-    st.title("📚 Library Assessment Assistant")
+    st.title("Library Assessment Assistant")
     st.markdown("### Welcome")
     st.markdown("Please log in to access the system.")
     
@@ -66,54 +66,49 @@ def show_login_page():
 
 def show_main_app():
     """Display main application interface with navigation."""
-    # Sidebar with navigation and logout
+    # Sidebar with navigation
     with st.sidebar:
-        st.title("📚 Library Assessment")
-        st.markdown(f"**User:** {st.session_state.username}")
+        st.title("Library Assessment")
         st.markdown("---")
         
         # Navigation menu
         page = st.radio(
             "Navigation",
             [
-                "🏠 Home",
-                "📤 Data Upload",
-                "💬 Query Interface",
-                "📊 Qualitative Analysis",
-                "📈 Visualizations",
-                "📄 Report Generation",
-                "📋 Data Governance"
+                "Home",
+                "Data Upload",
+                "Query Interface",
+                "Qualitative Analysis",
+                "Quantitative Analysis",
+                "Visualizations",
+                "Report Generation",
+                "Data Governance"
             ],
             key="navigation"
         )
-        
-        st.markdown("---")
-        
-        # Logout button
-        if st.button("🚪 Logout", use_container_width=True):
-            auth.logout_user(st.session_state)
-            st.rerun()
     
     # Main content area based on selected page
-    if page == "🏠 Home":
+    if page == "Home":
         show_home_page()
-    elif page == "📤 Data Upload":
+    elif page == "Data Upload":
         show_data_upload_page()
-    elif page == "💬 Query Interface":
+    elif page == "Query Interface":
         show_query_interface_page()
-    elif page == "📊 Qualitative Analysis":
+    elif page == "Qualitative Analysis":
         show_qualitative_analysis_page()
-    elif page == "📈 Visualizations":
+    elif page == "Quantitative Analysis":
+        show_quantitative_analysis_page()
+    elif page == "Visualizations":
         show_visualizations_page()
-    elif page == "📄 Report Generation":
+    elif page == "Report Generation":
         show_report_generation_page()
-    elif page == "📋 Data Governance":
+    elif page == "Data Governance":
         show_data_governance_page()
 
 
 def show_home_page():
     """Display home page with system overview."""
-    st.title("📚 Library Assessment Assistant")
+    st.title("Library Assessment Assistant")
     st.markdown("### AI-Powered Decision Support System")
     
     st.markdown("""
@@ -123,12 +118,12 @@ def show_home_page():
     
     #### Key Features
     
-    - **📤 Data Upload**: Upload CSV files with survey responses, usage statistics, and circulation data
-    - **💬 Query Interface**: Ask questions in plain English and get answers with citations
-    - **📊 Qualitative Analysis**: Analyze open-ended responses for sentiment and themes
-    - **📈 Visualizations**: Generate charts to visualize trends and patterns
-    - **📄 Report Generation**: Create comprehensive reports with statistics and narratives
-    - **📋 Data Governance**: Follow FAIR and CARE principles for responsible data management
+    - **Data Upload**: Upload CSV files with survey responses, usage statistics, and circulation data
+    - **Query Interface**: Ask questions in plain English and get answers with citations
+    - **Qualitative Analysis**: Analyze open-ended responses for sentiment and themes
+    - **Visualizations**: Generate charts to visualize trends and patterns
+    - **Report Generation**: Create comprehensive reports with statistics and narratives
+    - **Data Governance**: Follow FAIR and CARE principles for responsible data management
     
     #### Privacy & Compliance
     
@@ -153,13 +148,13 @@ def show_home_page():
     col1, col2, col3 = st.columns(3)
     
     with col1:
-        st.metric("Status", "🟢 Online")
+        st.metric("Status", "Online")
     
     with col2:
         st.metric("Processing", "Local Only")
     
     with col3:
-        st.metric("FERPA Compliant", "✓ Yes")
+        st.metric("FERPA Compliant", "Yes")
 
 
 def show_data_upload_page():
@@ -167,14 +162,16 @@ def show_data_upload_page():
     from modules import csv_handler
     import json
     
-    st.title("📤 Data Upload")
+    st.title("Data Upload")
     st.markdown("Upload CSV files containing library assessment data with FAIR/CARE metadata.")
     
     # Create tabs for upload and manage datasets
-    tab1, tab2 = st.tabs(["📤 Upload New Dataset", "📋 Manage Datasets"])
+    tab1, tab2 = st.tabs(["Upload New Dataset", "Manage Datasets"])
     
     with tab1:
         st.markdown("### Upload New Dataset")
+        
+        st.info("Tip: Use the 'Auto-Fill Metadata' button to automatically populate metadata fields based on your dataset!")
         
         # File uploader
         uploaded_file = st.file_uploader(
@@ -191,6 +188,14 @@ def show_data_upload_page():
                 help="Select the type of data in your CSV file"
             )
             
+            # Show helpful information about dataset types
+            dataset_info = {
+                "survey": "Survey data with responses, feedback, or comments. Any column structure is accepted.",
+                "usage": "Usage statistics with dates and metrics (visits, sessions, etc.). Any column structure is accepted.",
+                "circulation": "Circulation data with checkout information. Any column structure is accepted."
+            }
+            st.caption(f"ℹ️ {dataset_info[dataset_type]}")
+            
             # Dataset name
             dataset_name = st.text_input(
                 "Dataset Name",
@@ -198,28 +203,70 @@ def show_data_upload_page():
                 help="A unique name for this dataset"
             )
             
+            # Auto-detect metadata button
+            col_auto1, col_auto2 = st.columns([1, 3])
+            with col_auto1:
+                auto_detect = st.button("Auto-Fill Metadata", help="Automatically detect metadata from the uploaded file")
+            with col_auto2:
+                if auto_detect:
+                    st.info("Analyzing dataset to auto-fill metadata fields...")
+            
+            # Initialize session state for metadata if not exists
+            if 'metadata_title' not in st.session_state:
+                st.session_state.metadata_title = ""
+            if 'metadata_description' not in st.session_state:
+                st.session_state.metadata_description = ""
+            if 'metadata_source' not in st.session_state:
+                st.session_state.metadata_source = ""
+            if 'metadata_keywords' not in st.session_state:
+                st.session_state.metadata_keywords = ""
+            
+            # Auto-detect metadata if button clicked
+            if auto_detect:
+                try:
+                    uploaded_file.seek(0)
+                    df = csv_handler.parse_csv(uploaded_file)
+                    auto_metadata = csv_handler.auto_detect_metadata(df, dataset_type, uploaded_file.name)
+                    
+                    st.session_state.metadata_title = auto_metadata.get('title', '')
+                    st.session_state.metadata_description = auto_metadata.get('description', '')
+                    st.session_state.metadata_source = auto_metadata.get('source', '')
+                    st.session_state.metadata_keywords = ', '.join(auto_metadata.get('keywords', []))
+                    
+                    st.success("Metadata auto-filled! Review and edit as needed.")
+                except UnicodeDecodeError as e:
+                    st.warning("Unable to auto-detect metadata due to file encoding issues. Please fill in metadata manually.")
+                    st.caption("Tip: Try saving your CSV file with UTF-8 encoding for better compatibility.")
+                except Exception as e:
+                    st.warning(f"Unable to auto-detect metadata: {str(e)}")
+                    st.caption("You can still fill in the metadata fields manually below.")
+            
             # FAIR/CARE Metadata Section
             st.markdown("#### FAIR/CARE Metadata")
             st.markdown("Provide metadata to support findability, accessibility, and responsible data use.")
             
-            with st.expander("📝 Metadata Fields", expanded=True):
+            with st.expander("Metadata Fields", expanded=True):
                 title = st.text_input(
                     "Title",
+                    value=st.session_state.metadata_title,
                     help="Human-readable title for the dataset"
                 )
                 
                 description = st.text_area(
                     "Description",
+                    value=st.session_state.metadata_description,
                     help="Detailed description of dataset contents and purpose"
                 )
                 
                 source = st.text_input(
                     "Source",
+                    value=st.session_state.metadata_source,
                     help="Origin of the data (e.g., Qualtrics, ILS, manual entry)"
                 )
                 
                 keywords_input = st.text_input(
                     "Keywords (comma-separated)",
+                    value=st.session_state.metadata_keywords,
                     help="Keywords for findability (e.g., survey, undergraduate, spring 2024)"
                 )
                 
@@ -239,10 +286,10 @@ def show_data_upload_page():
             col1, col2 = st.columns([1, 1])
             
             with col1:
-                validate_button = st.button("🔍 Validate CSV", use_container_width=True)
+                validate_button = st.button("Validate CSV", use_container_width=True)
             
             with col2:
-                upload_button = st.button("✅ Upload Dataset", type="primary", use_container_width=True)
+                upload_button = st.button("Upload Dataset", type="primary", use_container_width=True)
             
             # Validation
             if validate_button or upload_button:
@@ -254,16 +301,16 @@ def show_data_upload_page():
                 # Check for duplicates
                 duplicate = csv_handler.check_duplicate(file_hash)
                 if duplicate:
-                    st.warning(f"⚠️ This dataset has already been uploaded (detected by file hash). Upload date: {duplicate['upload_date']}")
+                    st.warning(f"Warning: This dataset has already been uploaded (detected by file hash). Upload date: {duplicate['upload_date']}")
                     st.info("You can still upload it if you want to create a separate copy.")
                 
                 # Validate CSV
                 is_valid, error_msg = csv_handler.validate_csv(uploaded_file, dataset_type)
                 
                 if not is_valid:
-                    st.error(f"❌ {error_msg}")
+                    st.error(f"Error: {error_msg}")
                 else:
-                    st.success("✅ CSV validation passed!")
+                    st.success("CSV validation passed!")
                     
                     # Show preview
                     uploaded_file.seek(0)
@@ -308,11 +355,11 @@ def show_data_upload_page():
                                     f"Uploaded dataset: {dataset_name} (ID: {dataset_id})"
                                 )
                                 
-                                st.success(f"🎉 Dataset uploaded successfully! Dataset ID: {dataset_id}")
+                                st.success(f"Dataset uploaded successfully! Dataset ID: {dataset_id}")
                                 st.balloons()
                                 
                             except Exception as e:
-                                st.error(f"❌ Error uploading dataset: {str(e)}")
+                                st.error(f"Error uploading dataset: {str(e)}")
     
     with tab2:
         st.markdown("### Manage Datasets")
@@ -331,7 +378,7 @@ def show_data_upload_page():
                 manifest = csv_handler.generate_data_manifest()
                 manifest_json = json.dumps(manifest, indent=2)
                 st.download_button(
-                    "📥 Download Data Manifest",
+                    "Download Data Manifest",
                     data=manifest_json,
                     file_name="data_manifest.json",
                     mime="application/json",
@@ -342,7 +389,7 @@ def show_data_upload_page():
             
             # Display each dataset
             for dataset in datasets:
-                with st.expander(f"📊 {dataset['name']} (ID: {dataset['id']})", expanded=False):
+                with st.expander(f"{dataset['name']} (ID: {dataset['id']})", expanded=False):
                     # Basic info
                     col1, col2, col3 = st.columns(3)
                     with col1:
@@ -381,7 +428,7 @@ def show_data_upload_page():
                     
                     with col1:
                         # Edit metadata button
-                        if st.button(f"✏️ Edit Metadata", key=f"edit_{dataset['id']}"):
+                        if st.button(f"Edit Metadata", key=f"edit_{dataset['id']}"):
                             st.session_state[f"editing_{dataset['id']}"] = True
                     
                     with col2:
@@ -389,7 +436,7 @@ def show_data_upload_page():
                         csv_data = csv_handler.export_dataset(dataset['id'], 'csv')
                         if csv_data:
                             st.download_button(
-                                "📥 Export CSV",
+                                "Export CSV",
                                 data=csv_data,
                                 file_name=f"{dataset['name']}.csv",
                                 mime="text/csv",
@@ -401,7 +448,7 @@ def show_data_upload_page():
                         json_data = csv_handler.export_dataset(dataset['id'], 'json')
                         if json_data:
                             st.download_button(
-                                "📥 Export JSON",
+                                "Export JSON",
                                 data=json_data,
                                 file_name=f"{dataset['name']}.json",
                                 mime="application/json",
@@ -410,7 +457,7 @@ def show_data_upload_page():
                     
                     with col4:
                         # Delete button
-                        if st.button(f"🗑️ Delete", key=f"delete_{dataset['id']}", type="secondary"):
+                        if st.button(f"Delete", key=f"delete_{dataset['id']}", type="secondary"):
                             st.session_state[f"confirm_delete_{dataset['id']}"] = True
                     
                     # Edit metadata form
@@ -429,9 +476,9 @@ def show_data_upload_page():
                             
                             col1, col2 = st.columns(2)
                             with col1:
-                                save_button = st.form_submit_button("💾 Save Changes", type="primary")
+                                save_button = st.form_submit_button("Save Changes", type="primary")
                             with col2:
-                                cancel_button = st.form_submit_button("❌ Cancel")
+                                cancel_button = st.form_submit_button("Cancel")
                             
                             if save_button:
                                 new_keywords = [k.strip() for k in new_keywords_input.split(',') if k.strip()]
@@ -445,7 +492,7 @@ def show_data_upload_page():
                                 }
                                 
                                 if csv_handler.update_dataset_metadata(dataset['id'], new_metadata):
-                                    st.success("✅ Metadata updated successfully!")
+                                    st.success("Metadata updated successfully!")
                                     st.session_state[f"editing_{dataset['id']}"] = False
                                     
                                     # Log access
@@ -456,7 +503,7 @@ def show_data_upload_page():
                                     )
                                     st.rerun()
                                 else:
-                                    st.error("❌ Failed to update metadata.")
+                                    st.error("Failed to update metadata.")
                             
                             if cancel_button:
                                 st.session_state[f"editing_{dataset['id']}"] = False
@@ -464,12 +511,12 @@ def show_data_upload_page():
                     
                     # Delete confirmation
                     if st.session_state.get(f"confirm_delete_{dataset['id']}", False):
-                        st.warning(f"⚠️ Are you sure you want to delete '{dataset['name']}'? This action cannot be undone.")
+                        st.warning(f"Warning: Are you sure you want to delete '{dataset['name']}'? This action cannot be undone.")
                         col1, col2 = st.columns(2)
                         with col1:
-                            if st.button(f"✅ Yes, Delete", key=f"confirm_yes_{dataset['id']}", type="primary"):
+                            if st.button(f"Yes, Delete", key=f"confirm_yes_{dataset['id']}", type="primary"):
                                 if csv_handler.delete_dataset(dataset['id']):
-                                    st.success(f"✅ Dataset '{dataset['name']}' deleted successfully!")
+                                    st.success(f"Dataset '{dataset['name']}' deleted successfully!")
                                     
                                     # Log access
                                     from modules import auth
@@ -481,9 +528,9 @@ def show_data_upload_page():
                                     st.session_state[f"confirm_delete_{dataset['id']}"] = False
                                     st.rerun()
                                 else:
-                                    st.error("❌ Failed to delete dataset.")
+                                    st.error("Failed to delete dataset.")
                         with col2:
-                            if st.button(f"❌ Cancel", key=f"confirm_no_{dataset['id']}"):
+                            if st.button(f"Cancel", key=f"confirm_no_{dataset['id']}"):
                                 st.session_state[f"confirm_delete_{dataset['id']}"] = False
                                 st.rerun()
 
@@ -494,7 +541,7 @@ def show_query_interface_page():
     from modules import auth
     import uuid
     
-    st.title("💬 Query Interface")
+    st.title("Query Interface")
     st.markdown("Ask questions about your library data in natural language.")
     
     # Initialize RAG engine in session state
@@ -502,7 +549,7 @@ def show_query_interface_page():
         try:
             st.session_state.rag_engine = RAGQuery()
         except Exception as e:
-            st.error(f"❌ Failed to initialize RAG engine: {str(e)}")
+            st.error(f"Failed to initialize RAG engine: {str(e)}")
             st.info("Please ensure ChromaDB is properly configured.")
             return
     
@@ -519,7 +566,7 @@ def show_query_interface_page():
     is_connected, error_msg = rag_engine.test_ollama_connection()
     
     if not is_connected:
-        st.error(f"❌ {error_msg}")
+        st.error(f"Error: {error_msg}")
         st.markdown("""
         ### How to start Ollama:
         
@@ -533,7 +580,7 @@ def show_query_interface_page():
         return
     
     # Show connection status
-    st.success("🟢 Connected to Ollama")
+    st.success("Connected to Ollama")
     
     # Get conversation history
     conversation_history = rag_engine.get_conversation_history(st.session_state.query_session_id)
@@ -544,7 +591,7 @@ def show_query_interface_page():
     with col1:
         st.metric("Conversation Context", f"{context_size} turns")
     with col2:
-        if st.button("🗑️ Clear Context", use_container_width=True):
+        if st.button("Clear Context", use_container_width=True):
             rag_engine.clear_conversation(st.session_state.query_session_id)
             st.session_state.messages = []
             st.session_state.query_session_id = str(uuid.uuid4())
@@ -567,29 +614,29 @@ def show_query_interface_page():
             if message["role"] == "assistant" and "error_type" in message:
                 error_type = message.get("error_type")
                 if error_type == "no_relevant_data":
-                    st.warning("⚠️ No Relevant Data Found")
+                    st.warning("No Relevant Data Found")
                 elif error_type == "context_too_large":
-                    st.error("❌ Context Too Large")
+                    st.error("Context Too Large")
                 elif error_type == "llm_timeout":
-                    st.error("⏱️ Response Generation Timed Out")
+                    st.error("Response Generation Timed Out")
                 elif error_type == "ollama_connection_failed":
-                    st.error("❌ Ollama Connection Failed")
+                    st.error("Ollama Connection Failed")
                 elif error_type == "exception":
-                    st.error("❌ Error")
+                    st.error("Error")
             
             st.markdown(message["content"])
             
             # Display citations if present
             if message["role"] == "assistant" and "citations" in message:
                 if message["citations"]:
-                    with st.expander("📚 Citations", expanded=False):
+                    with st.expander("Citations", expanded=False):
                         for citation in message["citations"]:
                             st.markdown(f"- **Source {citation['source_number']}**: Dataset ID {citation['dataset_id']} ({citation['dataset_type']}) - {citation.get('date', 'N/A')}")
             
             # Display suggested questions if present
             if message["role"] == "assistant" and "suggested_questions" in message:
                 if message["suggested_questions"]:
-                    with st.expander("💡 Suggested Follow-up Questions", expanded=False):
+                    with st.expander("Suggested Follow-up Questions", expanded=False):
                         for i, suggestion in enumerate(message["suggested_questions"]):
                             if st.button(suggestion, key=f"suggestion_{len(st.session_state.messages)}_{i}"):
                                 # Add suggestion as user message and process it
@@ -620,16 +667,16 @@ def show_query_interface_page():
                     error_type = result.get("error_type")
                     
                     if error_type == "no_relevant_data":
-                        st.warning("⚠️ No Relevant Data Found")
+                        st.warning("No Relevant Data Found")
                         st.markdown(result["answer"])
                     elif error_type == "context_too_large":
-                        st.error("❌ Context Too Large")
+                        st.error("Context Too Large")
                         st.markdown(result["answer"])
                     elif error_type == "llm_timeout":
-                        st.error("⏱️ Response Generation Timed Out")
+                        st.error("Response Generation Timed Out")
                         st.markdown(result["answer"])
                     elif error_type == "ollama_connection_failed":
-                        st.error("❌ Ollama Connection Failed")
+                        st.error("Ollama Connection Failed")
                         st.markdown(result["answer"])
                     else:
                         # Normal response
@@ -637,13 +684,13 @@ def show_query_interface_page():
                     
                     # Display citations
                     if result["citations"]:
-                        with st.expander("📚 Citations", expanded=False):
+                        with st.expander("Citations", expanded=False):
                             for citation in result["citations"]:
                                 st.markdown(f"- **Source {citation['source_number']}**: Dataset ID {citation['dataset_id']} ({citation['dataset_type']}) - {citation.get('date', 'N/A')}")
                     
                     # Display suggested questions
                     if result["suggested_questions"]:
-                        with st.expander("💡 Suggested Follow-up Questions", expanded=False):
+                        with st.expander("Suggested Follow-up Questions", expanded=False):
                             for i, suggestion in enumerate(result["suggested_questions"]):
                                 if st.button(suggestion, key=f"new_suggestion_{i}"):
                                     # Add suggestion as user message
@@ -652,9 +699,9 @@ def show_query_interface_page():
                     
                     # Display processing time (only for successful queries)
                     if not error_type:
-                        st.caption(f"⏱️ Processing time: {result['processing_time_ms']}ms | Confidence: {result['confidence']:.2%}")
+                        st.caption(f"Processing time: {result['processing_time_ms']}ms | Confidence: {result['confidence']:.2%}")
                     else:
-                        st.caption(f"⏱️ Processing time: {result['processing_time_ms']}ms")
+                        st.caption(f"Processing time: {result['processing_time_ms']}ms")
                     
                     # Add assistant message to chat history
                     st.session_state.messages.append({
@@ -672,7 +719,7 @@ def show_query_interface_page():
                     )
                     
                 except Exception as e:
-                    error_message = f"❌ Error processing query: {str(e)}"
+                    error_message = f"Error processing query: {str(e)}"
                     st.error(error_message)
                     
                     # Check for specific error types
@@ -715,7 +762,7 @@ def show_query_interface_page():
     
     # Help section
     st.markdown("---")
-    with st.expander("ℹ️ How to use the Query Interface", expanded=False):
+    with st.expander("How to use the Query Interface", expanded=False):
         st.markdown("""
         ### Getting Started
         
@@ -746,7 +793,7 @@ def show_query_interface_page():
         """)
     
     st.markdown("---")
-    st.caption("💡 Tip: Be specific in your questions for better results. The system searches across all uploaded datasets.")
+    st.caption("Tip: Be specific in your questions for better results. The system searches across all uploaded datasets.")
 
 
 def show_qualitative_analysis_page():
@@ -755,7 +802,7 @@ def show_qualitative_analysis_page():
     import pandas as pd
     import json
     
-    st.title("📊 Qualitative Analysis")
+    st.title("Qualitative Analysis")
     st.markdown("Analyze open-ended survey responses for sentiment and themes.")
     
     # Get available datasets
@@ -810,7 +857,7 @@ def show_qualitative_analysis_page():
     with col2:
         st.markdown("")
         st.markdown("")
-        analyze_button = st.button("🔍 Run Analysis", type="primary", use_container_width=True)
+        analyze_button = st.button("Run Analysis", type="primary", use_container_width=True)
     
     # Run analysis
     if analyze_button:
@@ -836,13 +883,13 @@ def show_qualitative_analysis_page():
                     f"Performed qualitative analysis on dataset: {selected_dataset['name']} (ID: {selected_dataset_id})"
                 )
                 
-                st.success("✅ Analysis completed successfully!")
+                st.success("Analysis completed successfully!")
                 
             except ValueError as e:
-                st.error(f"❌ {str(e)}")
+                st.error(f"{str(e)}")
                 return
             except Exception as e:
-                st.error(f"❌ Error during analysis: {str(e)}")
+                st.error(f"Error during analysis: {str(e)}")
                 return
     
     # Display results if available
@@ -855,7 +902,7 @@ def show_qualitative_analysis_page():
         st.markdown("## Analysis Results")
         
         # Sentiment Analysis Section
-        st.markdown("### 📈 Sentiment Distribution")
+        st.markdown("### Sentiment Distribution")
         
         col1, col2, col3, col4 = st.columns(4)
         with col1:
@@ -886,7 +933,7 @@ def show_qualitative_analysis_page():
         
         # Theme Analysis Section
         st.markdown("---")
-        st.markdown("### 🎯 Identified Themes")
+        st.markdown("### Identified Themes")
         
         st.markdown(f"**{len(theme_results['themes'])} themes identified from {theme_results['total_responses']} responses**")
         
@@ -917,7 +964,7 @@ def show_qualitative_analysis_page():
         
         # Theme frequency chart
         st.markdown("---")
-        st.markdown("### 📊 Theme Frequency Distribution")
+        st.markdown("### Theme Frequency Distribution")
         
         theme_df = pd.DataFrame([
             {"Theme": theme['theme_name'], "Frequency": theme['frequency']}
@@ -936,7 +983,7 @@ def show_qualitative_analysis_page():
         
         # Export section
         st.markdown("---")
-        st.markdown("### 📥 Export Analysis Results")
+        st.markdown("### Export Analysis Results")
         
         col1, col2, col3 = st.columns(3)
         
@@ -957,7 +1004,7 @@ def show_qualitative_analysis_page():
             
             csv_data = theme_export_df.to_csv(index=False).encode('utf-8')
             st.download_button(
-                "📄 Export Themes (CSV)",
+                "Export Themes (CSV)",
                 data=csv_data,
                 file_name=f"themes_{results['dataset_name']}.csv",
                 mime="text/csv",
@@ -968,7 +1015,7 @@ def show_qualitative_analysis_page():
             # Export sentiment chart
             sentiment_chart_bytes = visualization.export_chart(sentiment_chart, "sentiment_distribution", format='html')
             st.download_button(
-                "📊 Export Sentiment Chart",
+                "Export Sentiment Chart",
                 data=sentiment_chart_bytes,
                 file_name=f"sentiment_chart_{results['dataset_name']}.html",
                 mime="text/html",
@@ -979,7 +1026,7 @@ def show_qualitative_analysis_page():
             # Export theme chart
             theme_chart_bytes = visualization.export_chart(theme_chart, "theme_frequency", format='html')
             st.download_button(
-                "📊 Export Theme Chart",
+                "Export Theme Chart",
                 data=theme_chart_bytes,
                 file_name=f"theme_chart_{results['dataset_name']}.html",
                 mime="text/html",
@@ -988,7 +1035,7 @@ def show_qualitative_analysis_page():
     
     # Help section
     st.markdown("---")
-    with st.expander("ℹ️ How to use Qualitative Analysis", expanded=False):
+    with st.expander("How to use Qualitative Analysis", expanded=False):
         st.markdown("""
         ### Getting Started
         
@@ -1026,7 +1073,7 @@ def show_qualitative_analysis_page():
         """)
     
     st.markdown("---")
-    st.caption("💡 Tip: Run analysis with different numbers of themes to find the optimal granularity for your data.")
+    st.caption("Tip: Run analysis with different numbers of themes to find the optimal granularity for your data.")
 
 
 def show_visualizations_page():
@@ -1034,7 +1081,7 @@ def show_visualizations_page():
     from modules import csv_handler, visualization, auth
     import pandas as pd
     
-    st.title("📈 Visualizations")
+    st.title("Visualizations")
     st.markdown("Generate charts to visualize trends and patterns in your library data.")
     
     # Get available datasets
@@ -1134,7 +1181,7 @@ def show_visualizations_page():
                 )
             
             # Optional axis labels
-            with st.expander("📝 Custom Axis Labels (Optional)", expanded=False):
+            with st.expander("Custom Axis Labels (Optional)", expanded=False):
                 col1, col2 = st.columns(2)
                 with col1:
                     x_label = st.text_input("X-Axis Label", value="")
@@ -1143,7 +1190,7 @@ def show_visualizations_page():
         
         # Generate chart button
         st.markdown("---")
-        generate_button = st.button("📊 Generate Chart", type="primary", use_container_width=True)
+        generate_button = st.button("Generate Chart", type="primary", use_container_width=True)
         
         if generate_button:
             with st.spinner("Generating chart..."):
@@ -1213,13 +1260,13 @@ def show_visualizations_page():
                         f"Generated {chart_type} for dataset: {selected_dataset['name']} (ID: {selected_dataset_id})"
                     )
                     
-                    st.success("✅ Chart generated successfully!")
+                    st.success("Chart generated successfully!")
                     
                 except ValueError as e:
-                    st.error(f"❌ Error: {str(e)}")
+                    st.error(f"Error: {str(e)}")
                     st.info("Please ensure the selected columns contain appropriate data for the chart type.")
                 except Exception as e:
-                    st.error(f"❌ Error generating chart: {str(e)}")
+                    st.error(f"Error generating chart: {str(e)}")
         
         # Display chart if available
         if 'current_chart' in st.session_state:
@@ -1230,7 +1277,7 @@ def show_visualizations_page():
             st.plotly_chart(st.session_state.current_chart['figure'], use_container_width=True)
             
             # Export options
-            st.markdown("### 📥 Export Chart")
+            st.markdown("### Export Chart")
             
             col1, col2 = st.columns(2)
             
@@ -1243,7 +1290,7 @@ def show_visualizations_page():
                         format='png'
                     )
                     st.download_button(
-                        "📥 Download as PNG",
+                        "Download as PNG",
                         data=png_bytes,
                         file_name=f"{st.session_state.current_chart['title']}.png",
                         mime="image/png",
@@ -1260,7 +1307,7 @@ def show_visualizations_page():
                     format='html'
                 )
                 st.download_button(
-                    "📥 Download as HTML",
+                    "Download as HTML",
                     data=html_bytes,
                     file_name=f"{st.session_state.current_chart['title']}.html",
                     mime="text/html",
@@ -1268,12 +1315,12 @@ def show_visualizations_page():
                 )
     
     except Exception as e:
-        st.error(f"❌ Error loading dataset: {str(e)}")
+        st.error(f"Error loading dataset: {str(e)}")
         return
     
     # Help section
     st.markdown("---")
-    with st.expander("ℹ️ How to use Visualizations", expanded=False):
+    with st.expander("How to use Visualizations", expanded=False):
         st.markdown("""
         ### Getting Started
         
@@ -1309,7 +1356,7 @@ def show_visualizations_page():
         """)
     
     st.markdown("---")
-    st.caption("💡 Tip: Use custom axis labels to make your charts more professional and easier to understand.")
+    st.caption("Tip: Use custom axis labels to make your charts more professional and easier to understand.")
 
 
 def show_report_generation_page():
@@ -1317,7 +1364,7 @@ def show_report_generation_page():
     from modules import csv_handler, report_generator, auth
     import json
     
-    st.title("📄 Report Generation")
+    st.title("Report Generation")
     st.markdown("Generate comprehensive reports with statistical summaries and narrative text.")
     
     # Get available datasets
@@ -1373,7 +1420,7 @@ def show_report_generation_page():
     # Generate report button
     col1, col2, col3 = st.columns([1, 1, 1])
     with col2:
-        generate_button = st.button("📊 Generate Report", type="primary", use_container_width=True)
+        generate_button = st.button("Generate Report", type="primary", use_container_width=True)
     
     # Generate report
     if generate_button:
@@ -1411,19 +1458,19 @@ def show_report_generation_page():
                 f"Generated report for datasets: {', '.join([str(id) for id in selected_dataset_ids])}"
             )
             
-            st.success("✅ Report generated successfully!")
+            st.success("Report generated successfully!")
             
             # Clear progress indicators
             progress_bar.empty()
             status_text.empty()
             
         except ValueError as e:
-            st.error(f"❌ Error: {str(e)}")
+            st.error(f"Error: {str(e)}")
             progress_bar.empty()
             status_text.empty()
             return
         except Exception as e:
-            st.error(f"❌ Error generating report: {str(e)}")
+            st.error(f"Error generating report: {str(e)}")
             progress_bar.empty()
             status_text.empty()
             return
@@ -1440,7 +1487,7 @@ def show_report_generation_page():
         st.markdown("---")
         
         # Metadata section
-        with st.expander("📋 Report Metadata", expanded=False):
+        with st.expander("Report Metadata", expanded=False):
             st.markdown(f"**Generated:** {report['metadata']['generated_at']}")
             st.markdown(f"**Author:** {report['metadata']['author']}")
             st.markdown(f"**Datasets:** {', '.join(report['metadata']['datasets'])}")
@@ -1468,7 +1515,7 @@ def show_report_generation_page():
                 st.markdown("#### Key Statistics")
                 
                 for metric_name, stats in summary['statistics'].items():
-                    with st.expander(f"📊 {metric_name}", expanded=False):
+                    with st.expander(f"{metric_name}", expanded=False):
                         cols = st.columns(5)
                         
                         if 'mean' in stats:
@@ -1487,7 +1534,7 @@ def show_report_generation_page():
                 st.markdown("#### Categorical Distributions")
                 
                 for category_name, counts in summary['categorical_counts'].items():
-                    with st.expander(f"📈 {category_name}", expanded=False):
+                    with st.expander(f"{category_name}", expanded=False):
                         # Display as columns
                         items = list(counts.items())
                         num_cols = min(4, len(items))
@@ -1532,7 +1579,7 @@ def show_report_generation_page():
             st.markdown("## Identified Themes")
             
             for theme in report['theme_summaries']:
-                with st.expander(f"🎯 {theme['name']} ({theme['frequency']} occurrences)", expanded=False):
+                with st.expander(f"{theme['name']} ({theme['frequency']} occurrences)", expanded=False):
                     st.markdown(f"**Keywords:** {', '.join(theme['keywords'])}")
                     
                     if theme.get('quotes'):
@@ -1551,7 +1598,7 @@ def show_report_generation_page():
             st.markdown("---")
         
         # Export section
-        st.markdown("## 📥 Export Report")
+        st.markdown("## Export Report")
         
         col1, col2 = st.columns(2)
         
@@ -1560,7 +1607,7 @@ def show_report_generation_page():
             try:
                 markdown_bytes, actual_format = report_generator.export_report(report, format='markdown')
                 st.download_button(
-                    "📄 Download as Markdown",
+                    "Download as Markdown",
                     data=markdown_bytes,
                     file_name=f"{report['title'].replace(' ', '_')}.md",
                     mime="text/markdown",
@@ -1568,7 +1615,7 @@ def show_report_generation_page():
                     help="Download report as Markdown file"
                 )
             except Exception as e:
-                st.error(f"❌ Error exporting Markdown: {str(e)}")
+                st.error(f"Error exporting Markdown: {str(e)}")
         
         with col2:
             # Export as PDF
@@ -1577,9 +1624,9 @@ def show_report_generation_page():
                 
                 # Check if PDF export succeeded or fell back to Markdown
                 if actual_format == 'markdown':
-                    st.warning("⚠️ PDF export failed. Downloading as Markdown instead.")
+                    st.warning("PDF export failed. Downloading as Markdown instead.")
                     st.download_button(
-                        "📄 Download as Markdown (Fallback)",
+                        "Download as Markdown (Fallback)",
                         data=pdf_bytes,
                         file_name=f"{report['title'].replace(' ', '_')}.md",
                         mime="text/markdown",
@@ -1588,7 +1635,7 @@ def show_report_generation_page():
                     )
                 else:
                     st.download_button(
-                        "📕 Download as PDF",
+                        "Download as PDF",
                         data=pdf_bytes,
                         file_name=f"{report['title'].replace(' ', '_')}.pdf",
                         mime="application/pdf",
@@ -1596,20 +1643,20 @@ def show_report_generation_page():
                         help="Download report as PDF file"
                     )
             except Exception as e:
-                st.warning("⚠️ PDF export not available. Please use Markdown export.")
+                st.warning("PDF export not available. Please use Markdown export.")
                 st.caption(f"Error: {str(e)}")
     
     # Display visualization warnings if any
     if report.get('metadata', {}).get('visualization_warnings'):
         st.markdown("---")
-        st.warning("⚠️ **Visualization Warnings**")
+        st.warning("Visualization Warnings")
         st.caption("Some visualizations could not be generated due to insufficient data:")
         for warning in report['metadata']['visualization_warnings']:
             st.caption(f"• {warning}")
     
     # Help section
     st.markdown("---")
-    with st.expander("ℹ️ How to use Report Generation", expanded=False):
+    with st.expander("How to use Report Generation", expanded=False):
         st.markdown("""
         ### Getting Started
         
@@ -1665,12 +1712,12 @@ def show_report_generation_page():
         """)
     
     st.markdown("---")
-    st.caption("💡 Tip: Generate multiple reports with different dataset combinations to compare findings across different data sources.")
+    st.caption("Tip: Generate multiple reports with different dataset combinations to compare findings across different data sources.")
 
 
 def show_data_governance_page():
     """Display data governance documentation page with FAIR and CARE principles."""
-    st.title("📋 Data Governance")
+    st.title("Data Governance")
     st.markdown("### Responsible Data Management for Library Assessment")
     
     st.markdown("""
@@ -1681,7 +1728,7 @@ def show_data_governance_page():
     
     # FAIR Principles Section
     st.markdown("---")
-    st.markdown("## 🔍 FAIR Principles")
+    st.markdown("## FAIR Principles")
     st.markdown("""
     FAIR principles ensure that research data is managed in ways that support discovery, 
     access, integration, and reuse by both humans and machines.
@@ -1753,7 +1800,7 @@ def show_data_governance_page():
     
     # CARE Principles Section
     st.markdown("---")
-    st.markdown("## 🤝 CARE Principles")
+    st.markdown("## CARE Principles")
     st.markdown("""
     CARE principles complement FAIR by emphasizing people and purpose in data governance, 
     particularly for data about communities and individuals.
@@ -1828,7 +1875,7 @@ def show_data_governance_page():
     
     # Data Collection and Use Section
     st.markdown("---")
-    st.markdown("## 📊 Data Collection and Use")
+    st.markdown("## Data Collection and Use")
     
     with st.expander("**What Data Is Collected**", expanded=False):
         st.markdown("""
@@ -1914,7 +1961,7 @@ def show_data_governance_page():
     
     # Privacy Protections Section
     st.markdown("---")
-    st.markdown("## 🔒 Privacy Protections")
+    st.markdown("## Privacy Protections")
     
     col1, col2 = st.columns(2)
     
@@ -1924,10 +1971,10 @@ def show_data_governance_page():
         
         **All data processing happens on your local machine:**
         
-        - ✅ No external API calls
-        - ✅ No cloud services
-        - ✅ No data transmission
-        - ✅ Complete data sovereignty
+        - No external API calls
+        - No cloud services
+        - No data transmission
+        - Complete data sovereignty
         
         **AI Processing:**
         - Ollama runs locally (Llama 3.2 3B)
@@ -1947,10 +1994,10 @@ def show_data_governance_page():
         
         **Automatic protection of personal information:**
         
-        - 🛡️ PII detection in outputs
-        - 🛡️ Redaction of sensitive data
-        - 🛡️ Flagging of potential privacy issues
-        - 🛡️ FERPA compliance measures
+        - PII detection in outputs
+        - Redaction of sensitive data
+        - Flagging of potential privacy issues
+        - FERPA compliance measures
         
         **Protected Information:**
         - Email addresses
@@ -1970,10 +2017,10 @@ def show_data_governance_page():
     
     **Complete transparency and accountability:**
     
-    - 📝 Every data access is logged with timestamp
-    - 📝 User actions tracked (upload, query, analysis, export, delete)
-    - 📝 Audit logs support compliance requirements
-    - 📝 Logs stored securely in local database
+    - Every data access is logged with timestamp
+    - User actions tracked (upload, query, analysis, export, delete)
+    - Audit logs support compliance requirements
+    - Logs stored securely in local database
     
     **Audit Log Information:**
     - Username of person performing action
@@ -1990,7 +2037,7 @@ def show_data_governance_page():
     
     # Ethical Use Guidelines Section
     st.markdown("---")
-    st.markdown("## ⚖️ Ethical Use Guidelines")
+    st.markdown("## Ethical Use Guidelines")
     
     st.markdown("""
     ### Principles for Responsible Library Assessment Data Use
@@ -2054,7 +2101,7 @@ def show_data_governance_page():
     
     # User Control Mechanisms Section
     st.markdown("---")
-    st.markdown("## 🎛️ User Access and Control Mechanisms")
+    st.markdown("## User Access and Control Mechanisms")
     
     st.markdown("""
     You have complete control over your data in this system. Here's what you can do:
@@ -2132,7 +2179,7 @@ def show_data_governance_page():
     
     # Additional Resources Section
     st.markdown("---")
-    st.markdown("## 📚 Additional Resources")
+    st.markdown("## Additional Resources")
     
     col1, col2 = st.columns(2)
     
@@ -2186,11 +2233,590 @@ def main():
     # Initialize session state for authentication
     auth.init_session_state(st.session_state)
     
-    # Show login page or main app based on authentication status
-    if auth.is_authenticated(st.session_state):
-        show_main_app()
-    else:
-        show_login_page()
+    # Auto-login with default user for development
+    if not auth.is_authenticated(st.session_state):
+        auth.login_user(st.session_state, "demo_user")
+    
+    # Show main app directly (authentication disabled for development)
+    show_main_app()
+
+
+def show_quantitative_analysis_page():
+    """Display quantitative analysis page with statistical analysis and LLM interpretations."""
+    from modules import csv_handler, quantitative_analysis, auth
+    import pandas as pd
+    import time
+    
+    st.title("Quantitative Analysis")
+    st.markdown("Perform advanced statistical analysis with AI-powered interpretations.")
+    
+    # Get available datasets
+    datasets = csv_handler.get_datasets()
+    
+    if not datasets:
+        st.info("No datasets available. Please upload data in the Data Upload section.")
+        return
+    
+    # Dataset selector
+    st.markdown("### Select Dataset")
+    dataset_options = {f"{d['name']} (ID: {d['id']}, Type: {d['dataset_type']})": d['id'] for d in datasets}
+    selected_dataset_name = st.selectbox(
+        "Choose a dataset to analyze",
+        options=list(dataset_options.keys()),
+        key="quant_dataset_selector"
+    )
+    
+    if not selected_dataset_name:
+        return
+    
+    selected_dataset_id = dataset_options[selected_dataset_name]
+    selected_dataset = next(d for d in datasets if d['id'] == selected_dataset_id)
+    
+    # Display dataset info
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        st.metric("Dataset", selected_dataset['name'])
+    with col2:
+        st.metric("Total Rows", selected_dataset['row_count'])
+    with col3:
+        st.metric("Type", selected_dataset['dataset_type'])
+    
+    st.markdown("---")
+    
+    # Analysis type selector
+    st.markdown("### Select Analysis Type")
+    analysis_type = st.selectbox(
+        "Choose the type of analysis to perform",
+        options=[
+            "Correlation Analysis",
+            "Trend Analysis",
+            "Comparative Analysis",
+            "Distribution Analysis"
+        ],
+        key="analysis_type_selector"
+    )
+    
+    # Analysis-specific parameters
+    st.markdown("### Configure Parameters")
+    
+    if analysis_type == "Correlation Analysis":
+        st.markdown("**Correlation Analysis** identifies relationships between numeric variables.")
+        
+        method = st.selectbox(
+            "Correlation Method",
+            options=["pearson", "spearman", "kendall"],
+            help="Pearson: linear relationships (normal data), Spearman: monotonic relationships (non-normal data), Kendall: ordinal data"
+        )
+        
+        analyze_button = st.button("Run Correlation Analysis", type="primary", use_container_width=True)
+        
+        if analyze_button:
+            with st.spinner("Analyzing correlations... This may take a moment."):
+                start_time = time.time()
+                try:
+                    # Run correlation analysis
+                    results = quantitative_analysis.calculate_correlation(
+                        dataset_id=selected_dataset_id,
+                        method=method
+                    )
+                    
+                    # Generate interpretation
+                    interpretation_results = quantitative_analysis.generate_interpretation(
+                        analysis_type='correlation',
+                        results=results,
+                        context={'dataset_name': selected_dataset['name']}
+                    )
+                    
+                    # Generate insights
+                    insights_results = quantitative_analysis.generate_insights(
+                        dataset_id=selected_dataset_id,
+                        analysis_results=results,
+                        context={'dataset_name': selected_dataset['name'], 'dataset_type': selected_dataset['dataset_type']}
+                    )
+                    
+                    # Generate recommendations
+                    recommendations_results = quantitative_analysis.generate_recommendations(
+                        analysis_type='correlation',
+                        analysis_results=results,
+                        context={'dataset_name': selected_dataset['name'], 'dataset_type': selected_dataset['dataset_type']}
+                    )
+                    
+                    # Combine results
+                    results['interpretation'] = interpretation_results.get('interpretation')
+                    results['insights'] = insights_results.get('insights')
+                    results['recommendations'] = recommendations_results.get('recommendations')
+                    
+                    # Store analysis in database
+                    analysis_id = quantitative_analysis.store_analysis_results(
+                        dataset_id=selected_dataset_id,
+                        analysis_type='correlation',
+                        parameters={'method': method},
+                        results=results
+                    )
+                    
+                    execution_time = time.time() - start_time
+                    
+                    # Store in session state
+                    st.session_state.quant_results = {
+                        'analysis_id': analysis_id,
+                        'analysis_type': 'correlation',
+                        'results': results,
+                        'execution_time': execution_time
+                    }
+                    
+                    # Log access
+                    auth.log_access(
+                        st.session_state.username,
+                        f"Performed correlation analysis on dataset: {selected_dataset['name']} (ID: {selected_dataset_id})"
+                    )
+                    
+                    st.success(f"Analysis completed in {execution_time:.2f} seconds! (Analysis ID: {analysis_id})")
+                    
+                except ValueError as e:
+                    st.error(f"{str(e)}")
+                    return
+                except Exception as e:
+                    st.error(f"Error during analysis: {str(e)}")
+                    return
+    
+    elif analysis_type == "Trend Analysis":
+        st.markdown("**Trend Analysis** identifies patterns and forecasts future values in time series data.")
+        
+        # Get column names from dataset
+        try:
+            df = quantitative_analysis._load_dataset_data(selected_dataset_id)
+            columns = df.columns.tolist()
+            
+            date_column = st.selectbox(
+                "Date Column",
+                options=columns,
+                help="Select the column containing dates or time periods"
+            )
+            
+            numeric_columns = df.select_dtypes(include=['number']).columns.tolist()
+            value_column = st.selectbox(
+                "Value Column",
+                options=numeric_columns,
+                help="Select the numeric column to analyze for trends"
+            )
+            
+            analyze_button = st.button("Run Trend Analysis", type="primary", use_container_width=True)
+            
+            if analyze_button:
+                with st.spinner("Analyzing trends... This may take a moment."):
+                    start_time = time.time()
+                    try:
+                        # Run trend analysis
+                        results = quantitative_analysis.calculate_trend(
+                            dataset_id=selected_dataset_id,
+                            date_column=date_column,
+                            value_column=value_column
+                        )
+                        
+                        # Generate interpretation
+                        interpretation_results = quantitative_analysis.generate_interpretation(
+                            analysis_type='trend',
+                            results=results,
+                            context={'dataset_name': selected_dataset['name']}
+                        )
+                        
+                        # Generate insights
+                        insights_results = quantitative_analysis.generate_insights(
+                            dataset_id=selected_dataset_id,
+                            analysis_results=results,
+                            context={'dataset_name': selected_dataset['name'], 'dataset_type': selected_dataset['dataset_type']}
+                        )
+                        
+                        # Generate recommendations
+                        recommendations_results = quantitative_analysis.generate_recommendations(
+                            analysis_type='trend',
+                            analysis_results=results,
+                            context={'dataset_name': selected_dataset['name'], 'dataset_type': selected_dataset['dataset_type']}
+                        )
+                        
+                        # Combine results
+                        results['interpretation'] = interpretation_results.get('interpretation')
+                        results['insights'] = insights_results.get('insights')
+                        results['recommendations'] = recommendations_results.get('recommendations')
+                        
+                        # Store analysis in database
+                        analysis_id = quantitative_analysis.store_analysis_results(
+                            dataset_id=selected_dataset_id,
+                            analysis_type='trend',
+                            parameters={'date_column': date_column, 'value_column': value_column},
+                            results=results
+                        )
+                        
+                        execution_time = time.time() - start_time
+                        
+                        # Store in session state
+                        st.session_state.quant_results = {
+                            'analysis_id': analysis_id,
+                            'analysis_type': 'trend',
+                            'results': results,
+                            'execution_time': execution_time
+                        }
+                        
+                        # Log access
+                        auth.log_access(
+                            st.session_state.username,
+                            f"Performed trend analysis on dataset: {selected_dataset['name']} (ID: {selected_dataset_id})"
+                        )
+                        
+                        st.success(f"Analysis completed in {execution_time:.2f} seconds! (Analysis ID: {analysis_id})")
+                        
+                    except ValueError as e:
+                        st.error(f"{str(e)}")
+                        return
+                    except Exception as e:
+                        st.error(f"Error during analysis: {str(e)}")
+                        return
+                        
+        except Exception as e:
+            st.error(f"Could not load dataset columns: {str(e)}")
+            return
+    
+    elif analysis_type == "Comparative Analysis":
+        st.markdown("**Comparative Analysis** compares metrics across different groups or categories.")
+        
+        # Get column names from dataset
+        try:
+            df = quantitative_analysis._load_dataset_data(selected_dataset_id)
+            columns = df.columns.tolist()
+            
+            numeric_columns = df.select_dtypes(include=['number']).columns.tolist()
+            value_column = st.selectbox(
+                "Value Column",
+                options=numeric_columns,
+                help="Select the numeric column to compare across groups"
+            )
+            
+            group_column = st.selectbox(
+                "Group Column",
+                options=columns,
+                help="Select the column containing group labels"
+            )
+            
+            test_type = st.selectbox(
+                "Statistical Test",
+                options=["auto", "t-test", "mann-whitney", "anova", "kruskal-wallis"],
+                help="Auto: automatically selects based on number of groups and normality"
+            )
+            
+            analyze_button = st.button("Run Comparative Analysis", type="primary", use_container_width=True)
+            
+            if analyze_button:
+                with st.spinner("Comparing groups... This may take a moment."):
+                    start_time = time.time()
+                    try:
+                        # Run comparative analysis
+                        results = quantitative_analysis.perform_comparative_analysis(
+                            dataset_id=selected_dataset_id,
+                            value_column=value_column,
+                            group_column=group_column,
+                            test_type=None if test_type == "auto" else test_type
+                        )
+                        
+                        # Generate interpretation
+                        interpretation_results = quantitative_analysis.generate_interpretation(
+                            analysis_type='comparative',
+                            results=results,
+                            context={'dataset_name': selected_dataset['name']}
+                        )
+                        
+                        # Generate insights
+                        insights_results = quantitative_analysis.generate_insights(
+                            dataset_id=selected_dataset_id,
+                            analysis_results=results,
+                            context={'dataset_name': selected_dataset['name'], 'dataset_type': selected_dataset['dataset_type']}
+                        )
+                        
+                        # Generate recommendations
+                        recommendations_results = quantitative_analysis.generate_recommendations(
+                            analysis_type='comparative',
+                            analysis_results=results,
+                            context={'dataset_name': selected_dataset['name'], 'dataset_type': selected_dataset['dataset_type']}
+                        )
+                        
+                        # Combine results
+                        results['interpretation'] = interpretation_results.get('interpretation')
+                        results['insights'] = insights_results.get('insights')
+                        results['recommendations'] = recommendations_results.get('recommendations')
+                        
+                        # Store analysis in database
+                        analysis_id = quantitative_analysis.store_analysis_results(
+                            dataset_id=selected_dataset_id,
+                            analysis_type='comparative',
+                            parameters={'value_column': value_column, 'group_column': group_column, 'test_type': test_type},
+                            results=results
+                        )
+                        
+                        execution_time = time.time() - start_time
+                        
+                        # Store in session state
+                        st.session_state.quant_results = {
+                            'analysis_id': analysis_id,
+                            'analysis_type': 'comparative',
+                            'results': results,
+                            'execution_time': execution_time
+                        }
+                        
+                        # Log access
+                        auth.log_access(
+                            st.session_state.username,
+                            f"Performed comparative analysis on dataset: {selected_dataset['name']} (ID: {selected_dataset_id})"
+                        )
+                        
+                        st.success(f"Analysis completed in {execution_time:.2f} seconds! (Analysis ID: {analysis_id})")
+                        
+                    except ValueError as e:
+                        st.error(f"{str(e)}")
+                        return
+                    except Exception as e:
+                        st.error(f"Error during analysis: {str(e)}")
+                        return
+                        
+        except Exception as e:
+            st.error(f"Could not load dataset columns: {str(e)}")
+            return
+    
+    elif analysis_type == "Distribution Analysis":
+        st.markdown("**Distribution Analysis** examines data distributions and detects outliers.")
+        
+        # Get column names from dataset
+        try:
+            df = quantitative_analysis._load_dataset_data(selected_dataset_id)
+            numeric_columns = df.select_dtypes(include=['number']).columns.tolist()
+            
+            column = st.selectbox(
+                "Column to Analyze",
+                options=numeric_columns,
+                help="Select the numeric column to analyze"
+            )
+            
+            outlier_method = st.selectbox(
+                "Outlier Detection Method",
+                options=["iqr", "zscore"],
+                help="IQR: Interquartile range method (robust to skewed data), Z-score: Standard deviation method (assumes normal distribution)"
+            )
+            
+            analyze_button = st.button("Run Distribution Analysis", type="primary", use_container_width=True)
+            
+            if analyze_button:
+                with st.spinner("Analyzing distribution... This may take a moment."):
+                    start_time = time.time()
+                    try:
+                        # Run distribution analysis
+                        results = quantitative_analysis.analyze_distribution(
+                            dataset_id=selected_dataset_id,
+                            column=column,
+                            outlier_method=outlier_method
+                        )
+                        
+                        # Generate interpretation
+                        interpretation_results = quantitative_analysis.generate_interpretation(
+                            analysis_type='distribution',
+                            results=results,
+                            context={'dataset_name': selected_dataset['name']}
+                        )
+                        
+                        # Generate insights
+                        insights_results = quantitative_analysis.generate_insights(
+                            dataset_id=selected_dataset_id,
+                            analysis_results=results,
+                            context={'dataset_name': selected_dataset['name'], 'dataset_type': selected_dataset['dataset_type']}
+                        )
+                        
+                        # Generate recommendations
+                        recommendations_results = quantitative_analysis.generate_recommendations(
+                            analysis_type='distribution',
+                            analysis_results=results,
+                            context={'dataset_name': selected_dataset['name'], 'dataset_type': selected_dataset['dataset_type']}
+                        )
+                        
+                        # Combine results
+                        results['interpretation'] = interpretation_results.get('interpretation')
+                        results['insights'] = insights_results.get('insights')
+                        results['recommendations'] = recommendations_results.get('recommendations')
+                        
+                        # Store analysis in database
+                        analysis_id = quantitative_analysis.store_analysis_results(
+                            dataset_id=selected_dataset_id,
+                            analysis_type='distribution',
+                            parameters={'column': column, 'outlier_method': outlier_method},
+                            results=results
+                        )
+                        
+                        execution_time = time.time() - start_time
+                        
+                        # Store in session state
+                        st.session_state.quant_results = {
+                            'analysis_id': analysis_id,
+                            'analysis_type': 'distribution',
+                            'results': results,
+                            'execution_time': execution_time
+                        }
+                        
+                        # Log access
+                        auth.log_access(
+                            st.session_state.username,
+                            f"Performed distribution analysis on dataset: {selected_dataset['name']} (ID: {selected_dataset_id})"
+                        )
+                        
+                        st.success(f"Analysis completed in {execution_time:.2f} seconds! (Analysis ID: {analysis_id})")
+                        
+                    except ValueError as e:
+                        st.error(f"{str(e)}")
+                        return
+                    except Exception as e:
+                        st.error(f"Error during analysis: {str(e)}")
+                        return
+                        
+        except Exception as e:
+            st.error(f"Could not load dataset columns: {str(e)}")
+            return
+    
+    # Display results if available
+    if 'quant_results' in st.session_state:
+        results_data = st.session_state.quant_results
+        results = results_data['results']
+        analysis_type_key = results_data['analysis_type']
+        
+        st.markdown("---")
+        st.markdown("## Analysis Results")
+        
+        # Performance metrics
+        col1, col2 = st.columns(2)
+        with col1:
+            st.metric("Analysis ID", results_data['analysis_id'])
+        with col2:
+            st.metric("Execution Time", f"{results_data['execution_time']:.2f}s")
+        
+        # Statistical Results
+        st.markdown("### Statistical Results")
+        
+        if analysis_type_key == 'correlation':
+            st.markdown(f"**Method:** {results['method'].capitalize()}")
+            st.markdown(f"**Observations:** {results['n_observations']}")
+            st.markdown(f"**Variables:** {results['n_variables']}")
+            
+            if results.get('top_correlations'):
+                st.markdown("**Top Correlations:**")
+                corr_df = pd.DataFrame(results['top_correlations'][:10])
+                corr_df['significant'] = corr_df['significant'].map({True: 'Yes', False: 'No'})
+                st.dataframe(corr_df[['variable1', 'variable2', 'correlation', 'p_value', 'significant']], use_container_width=True)
+                
+                # Visualization
+                try:
+                    fig = quantitative_analysis.create_correlation_heatmap(results)
+                    st.plotly_chart(fig, use_container_width=True)
+                except Exception as e:
+                    st.warning(f"Could not generate visualization: {str(e)}")
+        
+        elif analysis_type_key == 'trend':
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                st.metric("Trend Direction", results['trend_direction'].capitalize())
+            with col2:
+                st.metric("R-squared", f"{results['r_squared']:.3f}")
+            with col3:
+                st.metric("Seasonal Pattern", "Yes" if results.get('seasonal_pattern') else "No")
+            
+            # Visualization
+            try:
+                fig = quantitative_analysis.create_trend_chart(results)
+                st.plotly_chart(fig, use_container_width=True)
+            except Exception as e:
+                st.warning(f"Could not generate visualization: {str(e)}")
+        
+        elif analysis_type_key == 'comparative':
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                st.metric("Test Type", results['test_type'])
+            with col2:
+                st.metric("P-value", f"{results['p_value']:.4f}")
+            with col3:
+                st.metric("Significant", "Yes" if results.get('significant') else "No")
+            
+            if results.get('group_statistics'):
+                st.markdown("**Group Statistics:**")
+                group_df = pd.DataFrame(results['group_statistics']).T
+                st.dataframe(group_df, use_container_width=True)
+                
+                # Visualization
+                try:
+                    fig = quantitative_analysis.create_comparison_boxplot(results)
+                    st.plotly_chart(fig, use_container_width=True)
+                except Exception as e:
+                    st.warning(f"Could not generate visualization: {str(e)}")
+        
+        elif analysis_type_key == 'distribution':
+            col1, col2, col3, col4 = st.columns(4)
+            with col1:
+                st.metric("Skewness", f"{results['skewness']:.3f}")
+            with col2:
+                st.metric("Kurtosis", f"{results['kurtosis']:.3f}")
+            with col3:
+                st.metric("Normal", "Yes" if results.get('is_normal') else "No")
+            with col4:
+                st.metric("Outliers", results['n_outliers'])
+            
+            # Visualization
+            try:
+                fig = quantitative_analysis.create_distribution_histogram(results)
+                st.plotly_chart(fig, use_container_width=True)
+            except Exception as e:
+                st.warning(f"Could not generate visualization: {str(e)}")
+        
+        # LLM-Generated Content
+        if results.get('interpretation'):
+            st.markdown("### Interpretation")
+            st.markdown(results['interpretation'])
+        
+        if results.get('insights'):
+            st.markdown("### Insights")
+            st.markdown(results['insights'])
+        
+        if results.get('recommendations'):
+            st.markdown("### Recommendations")
+            st.markdown(results['recommendations'])
+        
+        # Export section
+        st.markdown("---")
+        st.markdown("### Export Results")
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            # Export to CSV
+            if st.button("Export Statistical Results (CSV)", use_container_width=True):
+                # Create export dataframe based on analysis type
+                if analysis_type_key == 'correlation' and results.get('top_correlations'):
+                    export_df = pd.DataFrame(results['top_correlations'])
+                elif analysis_type_key == 'comparative' and results.get('group_statistics'):
+                    export_df = pd.DataFrame(results['group_statistics']).T
+                else:
+                    export_df = pd.DataFrame([results])
+                
+                csv = export_df.to_csv(index=False)
+                st.download_button(
+                    label="Download CSV",
+                    data=csv,
+                    file_name=f"quantitative_analysis_{results_data['analysis_id']}.csv",
+                    mime="text/csv"
+                )
+        
+        with col2:
+            # Export full report
+            if st.button("Export Full Report (JSON)", use_container_width=True):
+                import json
+                json_str = json.dumps(results, indent=2, default=str)
+                st.download_button(
+                    label="Download JSON",
+                    data=json_str,
+                    file_name=f"quantitative_analysis_{results_data['analysis_id']}.json",
+                    mime="application/json"
+                )
 
 
 if __name__ == "__main__":

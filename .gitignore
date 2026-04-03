@@ -38,6 +38,7 @@ venv.bak/
 *.swp
 *.swo
 *~
+.kiro/
 
 # Testing
 .pytest_cache/
@@ -45,19 +46,24 @@ venv.bak/
 htmlcov/
 .hypothesis/
 
-# Data (sensitive)
+# Data (sensitive - do not commit actual data)
 data/library.db
 data/chroma_db/
-data/*.csv
-data/*.json
+data/raw/*.csv
+data/raw/*.json
+data/processed/
 *.db
 *.db-journal
 
-# Exports
+# Keep sample/test data
+!data/raw/library_feedback.json
+!data/raw/public_mixed.json
+!test_data/
+
+# Exports (generated files)
 exports/
 reports/*.pdf
-reports/*.md
-reports/*.png
+reports/*.html
 
 # Logs
 *.log
@@ -73,3 +79,24 @@ Thumbs.db
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Models (large files - download separately)
+models/*.bin
+models/*.pt
+models/*.pth
+models/*.onnx
+
+# Temporary test files
+test_*.py
+*_test.py
+test_encoding_handling.py
+test_flexible_validation.py
+test_metadata_autofill.py
+
+# Documentation drafts (keep only final versions)
+*_PART*.md
+DOCUMENTATION_UPDATES.md
+ENCODING_FIX_SUMMARY.md
+FLEXIBLE_VALIDATION_UPDATE.md
+FEATURE_METADATA_AUTOFILL_SUMMARY.md
+SYSTEM_TEST_RESULTS.md

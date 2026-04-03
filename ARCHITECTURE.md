@@ -2,13 +2,16 @@
 
 ## Overview
 
-The FERPA-Compliant RAG Decision Support System is a single-application Streamlit-based AI assistant for library assessment. It provides natural language query capabilities, qualitative analysis, and report generation while maintaining FERPA compliance through local-only processing.
+The Library Assessment Decision Support System is a single-application Streamlit-based AI assistant for library assessment. It provides natural language query capabilities, qualitative and quantitative analysis, and report generation while maintaining FERPA compliance through local-only processing.
 
 **Key Design Principles:**
+
 - Single application architecture (no microservices)
 - Local processing only (no external API calls)
 - Simple data storage (SQLite + ChromaDB embedded)
 - Manual data upload workflow
+- Human-in-the-loop decision making
+- Multi-source data integration
 - Minimal dependencies for MVP scope
 
 ## Technology Stack
@@ -21,6 +24,7 @@ The FERPA-Compliant RAG Decision Support System is a single-application Streamli
 | Embeddings | all-MiniLM-L6-v2 | Sentence embeddings (384 dimensions) |
 | Database | SQLite | Persistent data storage |
 | NLP | TextBlob | Sentiment analysis |
+| Statistics | scipy, statsmodels | Advanced statistical analysis |
 | Visualization | Plotly | Interactive charts |
 | Authentication | bcrypt | Password hashing |
 
@@ -63,17 +67,19 @@ The FERPA-Compliant RAG Decision Support System is a single-application Streamli
 **Purpose:** Entry point and UI orchestration
 
 **Key Functions:**
+
 - `show_login_page()` - Authentication UI
 - `show_main_app()` - Main navigation and page routing
 - `show_home_page()` - Dashboard and system status
 - `show_data_upload_page()` - CSV upload interface
 - `show_query_interface_page()` - RAG chat interface
-- `show_qualitative_analysis_page()` - Analysis UI
+- `show_qualitative_analysis_page()` - Qualitative analysis UI
+- `show_quantitative_analysis_page()` - Quantitative analysis UI
 - `show_visualizations_page()` - Chart generation UI
 - `show_report_generation_page()` - Report creation UI
 - `show_data_governance_page()` - FAIR/CARE documentation
 
-**Dependencies:** All modules (auth, csv_handler, rag_query, qualitative_analysis, visualization, report_generator)
+**Dependencies:** All modules (auth, csv_handler, rag_query, qualitative_analysis, quantitative_analysis, visualization, report_generator)
 
 #### 2. modules/auth.py (Authentication)
 **Purpose:** User authentication and session management
@@ -186,11 +192,89 @@ The FERPA-Compliant RAG Decision Support System is a single-application Streamli
 **Database Tables:** themes, qualitative_analyses
 
 **Error Handling:**
+
 - Insufficient data: Clear error with minimum requirements
 - TextBlob errors: Skip problematic entries, continue with rest
 - TF-IDF/clustering errors: Explain issue with short/homogeneous text
 
-#### 6. modules/report_generator.py (Report Creation)
+#### 6. modules/quantitative_analysis.py (Statistical Analysis)
+
+**Purpose:** Advanced statistical analysis with LLM-powered interpretations
+
+**Key Functions:**
+
+- `calculate_correlation()` - Pearson, Spearman, Kendall correlation analysis
+- `calculate_trend()` - Time series trend analysis with forecasting
+- `perform_comparative_analysis()` - t-tests, ANOVA, Mann-Whitney, Kruskal-Wallis
+- `analyze_distribution()` - Distribution analysis with outlier detection
+- `generate_interpretation()` - LLM-powered natural language interpretations
+- `generate_insights()` - Contextual insights about data patterns
+- `generate_recommendations()` - Actionable recommendations based on analysis
+- `store_analysis_results()` - Save analysis to database
+- `retrieve_analysis_results()` - Get analysis by ID
+- `list_analyses_by_dataset()` - List all analyses for a dataset
+- `create_correlation_heatmap()` - Correlation matrix visualization
+- `create_trend_chart()` - Trend line with forecast visualization
+- `create_comparison_boxplot()` - Group comparison visualization
+- `create_distribution_histogram()` - Distribution with outliers visualization
+- `validate_normality_assumption()` - Check parametric test assumptions
+- `recommend_correlation_method()` - Suggest appropriate correlation method
+- `recommend_comparison_test()` - Suggest appropriate statistical test
+- `get_method_assumptions()` - Explain method assumptions and limitations
+
+**Analysis Types:**
+
+1. **Correlation Analysis:**
+   - Pearson correlation for linear relationships
+   - Spearman correlation for monotonic relationships
+   - Kendall correlation for ordinal data
+   - Statistical significance testing (p-values)
+   - Correlation matrix and top correlations
+
+2. **Trend Analysis:**
+   - Linear regression for trend detection
+   - Moving averages (7-day, 30-day)
+   - Seasonal pattern detection via autocorrelation
+   - Forecasting with 95% confidence intervals
+   - R-squared and slope calculations
+
+3. **Comparative Analysis:**
+   - Independent t-tests for two-group comparisons
+   - One-way ANOVA for multi-group comparisons
+   - Mann-Whitney U test (non-parametric)
+   - Kruskal-Wallis test (non-parametric)
+   - Effect size calculations (Cohen's d)
+   - Post-hoc pairwise comparisons
+
+4. **Distribution Analysis:**
+   - Skewness and kurtosis calculations
+   - Shapiro-Wilk normality testing
+   - IQR-based outlier detection
+   - Z-score-based outlier detection
+   - Quartile and percentile calculations
+
+**LLM Integration:**
+
+- Uses local Ollama (Llama 3.2 3B) for interpretations
+- Generates natural language explanations of statistical results
+- Provides contextual insights about library data patterns
+- Creates actionable recommendations
+- 60-second timeout for LLM generation
+- Graceful fallback to statistical results only
+- PII redaction applied to all outputs
+
+**Database Tables:** quantitative_analyses
+
+**Error Handling:**
+
+- Insufficient data: Clear error with minimum requirements
+- Non-numeric data: Identify problematic columns
+- Missing date columns: Request date column for time series
+- Ollama connection failures: Instructions for starting Ollama
+- LLM timeouts: Return partial results with statistics only
+- Statistical calculation failures: Explanatory error messages
+
+#### 7. modules/report_generator.py (Report Creation)
 **Purpose:** Generate statistical summaries and narrative reports
 
 **Key Functions:**

@@ -56,7 +56,26 @@ from modules.database import execute_query, execute_update, get_db_connection
 from config.settings import Settings
 
 
-# Required columns for each dataset type
+# Suggested columns for each dataset type (flexible - not strictly required)
+SUGGESTED_COLUMNS = {
+    "survey": {
+        "required": [],  # No strict requirements - accept any survey data
+        "suggested": ["date", "response", "feedback", "comment", "question", "answer"],
+        "description": "Survey data with responses, feedback, or comments"
+    },
+    "usage": {
+        "required": [],  # No strict requirements
+        "suggested": ["date", "visits", "sessions", "users", "metric", "value"],
+        "description": "Usage statistics with dates and metrics"
+    },
+    "circulation": {
+        "required": [],  # No strict requirements
+        "suggested": ["date", "checkouts", "material", "patron", "item", "borrower"],
+        "description": "Circulation data with checkout information"
+    }
+}
+
+# Legacy support - keep for backward compatibility with tests
 REQUIRED_COLUMNS = {
     "survey": ["response_date", "question", "response_text"],
     "usage": ["date", "metric_name", "metric_value"],
@@ -77,20 +96,21 @@ def calculate_file_hash(file_content: bytes) -> str:
     return hashlib.sha256(file_content).hexdigest()
 
 
-def validate_csv(file, dataset_type: str) -> Tuple[bool, Optional[str]]:
+def validate_csv(file, dataset_type: str, strict_mode: bool = False) -> Tuple[bool, Optional[str]]:
     """
     Validate CSV file format and structure.
     
     Args:
         file: Uploaded file object
         dataset_type: Type of dataset (survey, usage, circulation)
+        strict_mode: If True, enforce strict column requirements (for testing)
         
     Returns:
         Tuple of (is_valid, error_message)
     """
     try:
-        # Try to read CSV
-        df = pd.read_csv(file)
+        # Try to read CSV with encoding detection
+        df = parse_csv(file)
         
         # Reset file pointer for subsequent reads
         file.seek(0)
@@ -99,18 +119,31 @@ def validate_csv(file, dataset_type: str) -> Tuple[bool, Optional[str]]:
         if df.empty:
             return False, "Uploaded file is empty. Please upload a file with data."
         
-        # Check required columns
-        if dataset_type in REQUIRED_COLUMNS:
+        # Check for completely empty columns
+        empty_cols = [col for col in df.columns if df[col].isna().all()]
+        if empty_cols:
+            return False, f"The following columns are completely empty: {', '.join(empty_cols)}. Please ensure all columns contain data."
+        
+        # Strict mode: Check required columns (for backward compatibility with tests)
+        if strict_mode and dataset_type in REQUIRED_COLUMNS:
             required = REQUIRED_COLUMNS[dataset_type]
             missing = [col for col in required if col not in df.columns]
             
             if missing:
                 return False, f"Missing required columns: {', '.join(missing)}. Expected columns: {', '.join(required)}"
         
-        # Check for completely empty columns
-        empty_cols = [col for col in df.columns if df[col].isna().all()]
-        if empty_cols:
-            return False, f"The following columns are completely empty: {', '.join(empty_cols)}. Please ensure all columns contain data."
+        # Flexible mode: Just provide helpful suggestions
+        if not strict_mode and dataset_type in SUGGESTED_COLUMNS:
+            suggestions = SUGGESTED_COLUMNS[dataset_type]
+            suggested_cols = suggestions["suggested"]
+            
+            # Check if any suggested columns are present
+            found_suggested = [col for col in df.columns if any(sugg in col.lower() for sugg in suggested_cols)]
+            
+            # If no suggested columns found, provide a helpful message (but still allow upload)
+            if not found_suggested:
+                # This is just informational - not an error
+                pass
         
         return True, None
         
@@ -118,21 +151,146 @@ def validate_csv(file, dataset_type: str) -> Tuple[bool, Optional[str]]:
         return False, "Uploaded file is empty. Please upload a file with data."
     except pd.errors.ParserError as e:
         return False, f"Invalid CSV format. Please upload a valid CSV file. Details: {str(e)}"
+    except UnicodeDecodeError:
+        return False, "Unable to read file due to encoding issues. Please save your CSV with UTF-8 encoding and try again."
     except Exception as e:
         return False, f"Invalid CSV format. Please upload a valid CSV file."
 
 
-def parse_csv(file) -> pd.DataFrame:
+def parse_csv(file, encoding=None) -> pd.DataFrame:
     """
-    Parse CSV file into DataFrame.
+    Parse CSV file into DataFrame with automatic encoding detection.
     
     Args:
         file: Uploaded file object
+        encoding: Optional encoding (if None, will try common encodings)
         
     Returns:
         pandas DataFrame
     """
-    return pd.read_csv(file)
+    if encoding:
+        return pd.read_csv(file, encoding=encoding)
+    
+    # Try common encodings
+    encodings = ['utf-8', 'latin-1', 'iso-8859-1', 'cp1252', 'utf-16']
+    
+    for enc in encodings:
+        try:
+            file.seek(0)
+            df = pd.read_csv(file, encoding=enc)
+            return df
+        except (UnicodeDecodeError, UnicodeError):
+            continue
+        except Exception as e:
+            # If it's not an encoding error, raise it
+            if 'codec' not in str(e).lower() and 'decode' not in str(e).lower():
+                raise
+    
+    # If all encodings fail, try with error handling
+    file.seek(0)
+    return pd.read_csv(file, encoding='utf-8', encoding_errors='replace')
+
+
+def auto_detect_metadata(df: pd.DataFrame, dataset_type: str, filename: str) -> Dict[str, Any]:
+    """
+    Auto-detect metadata from uploaded dataset.
+    
+    Args:
+        df: Parsed DataFrame
+        dataset_type: Type of dataset (survey, usage, circulation)
+        filename: Original filename
+        
+    Returns:
+        Dict with auto-detected metadata fields
+    """
+    metadata = {}
+    
+    # Auto-generate title from filename
+    title = filename.replace('.csv', '').replace('_', ' ').replace('-', ' ').title()
+    metadata['title'] = title
+    
+    # Generate description based on dataset characteristics
+    num_rows = len(df)
+    num_cols = len(df.columns)
+    
+    description_parts = [
+        f"{dataset_type.title()} dataset with {num_rows:,} records and {num_cols} fields."
+    ]
+    
+    # Add column information
+    if dataset_type == "survey":
+        if 'feedback' in df.columns or 'response' in df.columns:
+            description_parts.append("Contains textual feedback responses.")
+        if 'rating' in df.columns or 'score' in df.columns:
+            description_parts.append("Includes rating/score data.")
+    elif dataset_type == "usage":
+        if 'visits' in df.columns or 'sessions' in df.columns:
+            description_parts.append("Tracks usage patterns and visit statistics.")
+    elif dataset_type == "circulation":
+        if 'checkouts' in df.columns or 'borrowing' in df.columns:
+            description_parts.append("Contains circulation and borrowing data.")
+    
+    # Check for date columns
+    date_cols = [col for col in df.columns if any(date_term in col.lower() 
+                 for date_term in ['date', 'time', 'timestamp', 'year', 'month'])]
+    if date_cols:
+        # Try to detect date range
+        for col in date_cols:
+            try:
+                dates = pd.to_datetime(df[col], errors='coerce')
+                dates = dates.dropna()
+                if len(dates) > 0:
+                    min_date = dates.min().strftime('%Y-%m-%d')
+                    max_date = dates.max().strftime('%Y-%m-%d')
+                    description_parts.append(f"Date range: {min_date} to {max_date}.")
+                    break
+            except:
+                continue
+    
+    metadata['description'] = " ".join(description_parts)
+    
+    # Auto-detect keywords from columns and dataset type
+    keywords = [dataset_type]
+    
+    # Add keywords based on column names
+    column_keywords = set()
+    for col in df.columns:
+        col_lower = col.lower()
+        if 'feedback' in col_lower or 'comment' in col_lower or 'response' in col_lower:
+            column_keywords.add('feedback')
+        if 'rating' in col_lower or 'score' in col_lower or 'satisfaction' in col_lower:
+            column_keywords.add('ratings')
+        if 'student' in col_lower or 'undergraduate' in col_lower or 'graduate' in col_lower:
+            column_keywords.add('students')
+        if 'faculty' in col_lower or 'staff' in col_lower:
+            column_keywords.add('faculty-staff')
+        if 'visit' in col_lower or 'session' in col_lower:
+            column_keywords.add('visits')
+        if 'checkout' in col_lower or 'borrow' in col_lower or 'circulation' in col_lower:
+            column_keywords.add('circulation')
+        if 'book' in col_lower or 'material' in col_lower or 'item' in col_lower:
+            column_keywords.add('materials')
+    
+    keywords.extend(sorted(column_keywords))
+    
+    # Add year if detected
+    current_year = pd.Timestamp.now().year
+    if any(str(current_year) in str(val) for col in df.columns for val in df[col].head()):
+        keywords.append(str(current_year))
+    
+    metadata['keywords'] = keywords
+    
+    # Suggest source based on dataset characteristics
+    if 'qualtrics' in filename.lower():
+        metadata['source'] = 'Qualtrics Survey'
+    elif 'google' in filename.lower():
+        metadata['source'] = 'Google Forms'
+    elif 'ils' in filename.lower() or 'alma' in filename.lower() or 'sierra' in filename.lower():
+        metadata['source'] = 'Integrated Library System (ILS)'
+    else:
+        metadata['source'] = 'CSV Upload'
+    
+    return metadata
 
 
 def store_dataset(

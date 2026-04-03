@@ -406,6 +406,8 @@ def create_report(
     dataset_ids: List[int],
     include_viz: bool = True,
     include_qualitative: bool = False,
+    include_quantitative: bool = False,
+    quantitative_analysis_ids: Optional[List[int]] = None,
     db_path: Optional[str] = None
 ) -> Dict[str, Any]:
     """
@@ -417,6 +419,7 @@ def create_report(
     - Statistical summaries
     - Visualizations (if enabled)
     - Qualitative analysis results (if applicable)
+    - Quantitative analysis results (if applicable)
     - Theme summaries with quotes
     - Data source citations
     - Timestamp and author
@@ -425,6 +428,10 @@ def create_report(
         dataset_ids: List of dataset IDs to include in report
         include_viz: Whether to include visualizations (default: True)
         include_qualitative: Whether to include qualitative analysis (default: False)
+        include_quantitative: Whether to include quantitative analysis (default: False)
+        quantitative_analysis_ids: Optional list of specific quantitative analysis IDs to include.
+                                   If None and include_quantitative=True, includes all analyses
+                                   for the specified datasets.
         db_path: Optional path to database file
         
     Returns:
@@ -441,6 +448,7 @@ def create_report(
             'statistical_summaries': List[Dict],
             'visualizations': List[Dict] (if include_viz=True),
             'qualitative_analysis': Dict (if include_qualitative=True),
+            'quantitative_analyses': List[Dict] (if include_quantitative=True),
             'theme_summaries': List[Dict] (if qualitative analysis performed),
             'citations': List[str],
             'timestamp': str (ISO timestamp)
@@ -448,9 +456,12 @@ def create_report(
         
     Raises:
         ValueError: If dataset_ids is empty or contains invalid IDs
+        
+    Requirements: 8.1, 8.2, 8.3, 8.4, 8.5, 8.6, 8.7
     """
     from datetime import datetime
     import json
+    from modules.pii_detector import redact_pii
     
     if db_path is None:
         db_path = Settings.DATABASE_PATH
@@ -463,7 +474,7 @@ def create_report(
         'title': '',
         'metadata': {
             'generated_at': datetime.now().isoformat(),
-            'author': 'FERPA-Compliant RAG Decision Support System',
+            'author': 'Library Assessment Decision Support System',
             'datasets': [],
             'dataset_ids': dataset_ids
         },
@@ -471,6 +482,7 @@ def create_report(
         'statistical_summaries': [],
         'visualizations': [],
         'qualitative_analysis': None,
+        'quantitative_analyses': [],
         'theme_summaries': [],
         'citations': [],
         'timestamp': datetime.now().isoformat()
@@ -544,6 +556,60 @@ def create_report(
                 report['qualitative_analysis'] = qualitative_data
                 report['theme_summaries'] = formatted_themes
                 break  # Use first dataset with themes
+    
+    # Include quantitative analysis if requested
+    if include_quantitative:
+        from modules.quantitative_analysis import retrieve_analysis_results, list_analyses_by_dataset
+        
+        quantitative_results = []
+        
+        if quantitative_analysis_ids:
+            # Include specific analyses by ID
+            for analysis_id in quantitative_analysis_ids:
+                try:
+                    analysis = retrieve_analysis_results(analysis_id, db_path)
+                    if analysis:
+                        # Apply PII redaction to all text content (Requirement 8.7)
+                        if analysis.get('interpretation'):
+                            analysis['interpretation'], _ = redact_pii(analysis['interpretation'])
+                        if analysis.get('insights'):
+                            analysis['insights'], _ = redact_pii(analysis['insights'])
+                        if analysis.get('recommendations'):
+                            analysis['recommendations'], _ = redact_pii(analysis['recommendations'])
+                        
+                        quantitative_results.append(analysis)
+                        
+                        # Add citation
+                        citation = f"Quantitative Analysis: {analysis['analysis_type']} (ID: {analysis_id}, Dataset: {analysis['dataset_id']}, Date: {analysis['timestamp']})"
+                        report['citations'].append(citation)
+                except Exception as e:
+                    print(f"Warning: Could not retrieve quantitative analysis {analysis_id}: {str(e)}")
+        else:
+            # Include all analyses for the specified datasets
+            for dataset_id in dataset_ids:
+                try:
+                    analyses = list_analyses_by_dataset(dataset_id, limit=10, db_path=db_path)
+                    for analysis_summary in analyses:
+                        # Retrieve full analysis
+                        analysis = retrieve_analysis_results(analysis_summary['id'], db_path)
+                        if analysis:
+                            # Apply PII redaction to all text content (Requirement 8.7)
+                            if analysis.get('interpretation'):
+                                analysis['interpretation'], _ = redact_pii(analysis['interpretation'])
+                            if analysis.get('insights'):
+                                analysis['insights'], _ = redact_pii(analysis['insights'])
+                            if analysis.get('recommendations'):
+                                analysis['recommendations'], _ = redact_pii(analysis['recommendations'])
+                            
+                            quantitative_results.append(analysis)
+                            
+                            # Add citation
+                            citation = f"Quantitative Analysis: {analysis['analysis_type']} (ID: {analysis['id']}, Dataset: {dataset_id}, Date: {analysis['timestamp']})"
+                            report['citations'].append(citation)
+                except Exception as e:
+                    print(f"Warning: Could not retrieve quantitative analyses for dataset {dataset_id}: {str(e)}")
+        
+        report['quantitative_analyses'] = quantitative_results
     
     # Generate visualizations if requested
     visualization_warnings = []
@@ -783,6 +849,95 @@ def _export_markdown(report: Dict[str, Any]) -> bytes:
                 lines.append("**Representative Quotes:**")
                 for quote in theme['quotes']:
                     lines.append(f"> {quote}")
+                lines.append("")
+    
+    # Quantitative Analysis
+    if report.get('quantitative_analyses'):
+        lines.append("## Quantitative Analysis\n")
+        for analysis in report['quantitative_analyses']:
+            analysis_type = analysis['analysis_type'].replace('_', ' ').title()
+            lines.append(f"### {analysis_type} Analysis\n")
+            lines.append(f"**Analysis ID:** {analysis['id']}")
+            lines.append(f"**Dataset ID:** {analysis['dataset_id']}")
+            lines.append(f"**Performed:** {analysis['timestamp']}")
+            lines.append("")
+            
+            # Parameters
+            if analysis.get('parameters'):
+                lines.append("**Parameters:**")
+                for key, value in analysis['parameters'].items():
+                    lines.append(f"- {key}: {value}")
+                lines.append("")
+            
+            # Statistical Results Summary
+            if analysis.get('statistical_results'):
+                lines.append("#### Statistical Results\n")
+                stats = analysis['statistical_results']
+                
+                # Correlation-specific results
+                if analysis['analysis_type'] == 'correlation':
+                    if stats.get('method'):
+                        lines.append(f"**Method:** {stats['method'].capitalize()}")
+                    if stats.get('n_observations'):
+                        lines.append(f"**Observations:** {stats['n_observations']}")
+                    if stats.get('top_correlations'):
+                        lines.append("\n**Top Correlations:**")
+                        for corr in stats['top_correlations'][:5]:
+                            sig = "Yes" if corr.get('significant') else "No"
+                            lines.append(f"- {corr['variable1']} ↔ {corr['variable2']}: r = {corr['correlation']:.3f} (p = {corr['p_value']:.4f}) Significant: {sig}")
+                
+                # Trend-specific results
+                elif analysis['analysis_type'] == 'trend':
+                    if stats.get('trend_direction'):
+                        lines.append(f"**Trend Direction:** {stats['trend_direction'].capitalize()}")
+                    if stats.get('trend_slope'):
+                        lines.append(f"**Slope:** {stats['trend_slope']:.4f}")
+                    if stats.get('r_squared'):
+                        lines.append(f"**R-squared:** {stats['r_squared']:.3f}")
+                    if stats.get('seasonal_pattern') is not None:
+                        lines.append(f"**Seasonal Pattern:** {'Yes' if stats['seasonal_pattern'] else 'No'}")
+                
+                # Comparative-specific results
+                elif analysis['analysis_type'] == 'comparative':
+                    if stats.get('test_type'):
+                        lines.append(f"**Test:** {stats['test_type']}")
+                    if stats.get('test_statistic'):
+                        lines.append(f"**Test Statistic:** {stats['test_statistic']:.3f}")
+                    if stats.get('p_value'):
+                        sig = "Yes" if stats.get('significant') else "No"
+                        lines.append(f"**P-value:** {stats['p_value']:.4f} (Significant: {sig})")
+                    if stats.get('effect_size'):
+                        lines.append(f"**Effect Size (Cohen's d):** {stats['effect_size']:.3f}")
+                
+                # Distribution-specific results
+                elif analysis['analysis_type'] == 'distribution':
+                    if stats.get('skewness'):
+                        lines.append(f"**Skewness:** {stats['skewness']:.3f}")
+                    if stats.get('kurtosis'):
+                        lines.append(f"**Kurtosis:** {stats['kurtosis']:.3f}")
+                    if stats.get('is_normal') is not None:
+                        lines.append(f"**Normal Distribution:** {'Yes' if stats['is_normal'] else 'No'}")
+                    if stats.get('n_outliers'):
+                        lines.append(f"**Outliers Detected:** {stats['n_outliers']}")
+                
+                lines.append("")
+            
+            # LLM-Generated Interpretation
+            if analysis.get('interpretation'):
+                lines.append("#### Interpretation\n")
+                lines.append(analysis['interpretation'])
+                lines.append("")
+            
+            # LLM-Generated Insights
+            if analysis.get('insights'):
+                lines.append("#### Insights\n")
+                lines.append(analysis['insights'])
+                lines.append("")
+            
+            # LLM-Generated Recommendations
+            if analysis.get('recommendations'):
+                lines.append("#### Recommendations\n")
+                lines.append(analysis['recommendations'])
                 lines.append("")
     
     # Citations
