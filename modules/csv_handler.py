@@ -1390,9 +1390,59 @@ def dataframes_equivalent(df1: pd.DataFrame, df2: pd.DataFrame, tolerance: float
             non_nan_mask = ~nan_mask1
             if not pd.Series(col1_float[non_nan_mask]).sub(col2_float[non_nan_mask]).abs().le(tolerance).all():
                 return False
+        
+        # Handle string-to-numeric coercion (e.g., "00000" -> 0)
+        elif pd.api.types.is_string_dtype(col1) and pd.api.types.is_numeric_dtype(col2):
+            # Try converting string column to numeric
+            try:
+                col1_numeric = pd.to_numeric(col1, errors='coerce')
+                col2_float = col2.astype(float)
+                
+                # Check for NaN equality (including empty strings that become NaN)
+                nan_mask1 = pd.isna(col1_numeric) | (col1 == '')
+                nan_mask2 = pd.isna(col2_float)
+                
+                if not nan_mask1.equals(nan_mask2):
+                    return False
+                
+                # Compare non-NaN values with tolerance
+                non_nan_mask = ~nan_mask1
+                if len(col1_numeric[non_nan_mask]) > 0:
+                    if not pd.Series(col1_numeric[non_nan_mask]).sub(col2_float[non_nan_mask]).abs().le(tolerance).all():
+                        return False
+            except:
+                # If conversion fails, columns are not equivalent
+                return False
+        
+        # Handle numeric-to-string coercion (reverse case)
+        elif pd.api.types.is_numeric_dtype(col1) and pd.api.types.is_string_dtype(col2):
+            # Try converting string column to numeric
+            try:
+                col1_float = col1.astype(float)
+                col2_numeric = pd.to_numeric(col2, errors='coerce')
+                
+                # Check for NaN equality (including empty strings that become NaN)
+                nan_mask1 = pd.isna(col1_float)
+                nan_mask2 = pd.isna(col2_numeric) | (col2 == '')
+                
+                if not nan_mask1.equals(nan_mask2):
+                    return False
+                
+                # Compare non-NaN values with tolerance
+                non_nan_mask = ~nan_mask1
+                if len(col1_float[non_nan_mask]) > 0:
+                    if not pd.Series(col1_float[non_nan_mask]).sub(col2_numeric[non_nan_mask]).abs().le(tolerance).all():
+                        return False
+            except:
+                # If conversion fails, columns are not equivalent
+                return False
+        
         else:
-            # For non-numeric columns, use direct comparison
-            if not col1.equals(col2):
+            # For non-numeric columns, handle empty string vs NaN
+            col1_filled = col1.fillna('')
+            col2_filled = col2.fillna('')
+            
+            if not col1_filled.equals(col2_filled):
                 return False
     
     return True
