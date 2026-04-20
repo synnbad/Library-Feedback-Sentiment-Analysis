@@ -200,6 +200,47 @@ REQUIRED_COLUMNS = {
 }
 
 
+def _read_file_sample(file, sample_size: int = 2048) -> bytes:
+    """Read a small sample from a file-like object without consuming it."""
+    current_pos = None
+    if hasattr(file, "tell"):
+        try:
+            current_pos = file.tell()
+        except Exception:
+            current_pos = None
+
+    try:
+        if hasattr(file, "seek"):
+            file.seek(0)
+        sample = file.read(sample_size)
+    finally:
+        if current_pos is not None and hasattr(file, "seek"):
+            try:
+                file.seek(current_pos)
+            except Exception:
+                pass
+
+    if isinstance(sample, str):
+        return sample.encode("utf-8", errors="ignore")
+    return sample or b""
+
+
+def _looks_like_binary(sample: bytes) -> bool:
+    """Heuristic check for non-text file uploads such as images."""
+    if not sample:
+        return False
+
+    if sample.startswith((b"\x89PNG", b"\xff\xd8\xff", b"GIF87a", b"GIF89a", b"%PDF")):
+        return True
+
+    if b"\x00" in sample:
+        return True
+
+    text_chars = bytes(range(32, 127)) + b"\n\r\t\b\f"
+    non_text = sum(byte not in text_chars for byte in sample)
+    return (non_text / max(len(sample), 1)) > 0.3
+
+
 def calculate_file_hash(file_content: bytes) -> str:
     """
     Calculate SHA256 hash of file content for duplicate detection.
@@ -213,7 +254,7 @@ def calculate_file_hash(file_content: bytes) -> str:
     return hashlib.sha256(file_content).hexdigest()
 
 
-def validate_csv(file, dataset_type: str, strict_mode: bool = False) -> Tuple[bool, Optional[str]]:
+def validate_csv(file, dataset_type: str, strict_mode: bool = True) -> Tuple[bool, Optional[str]]:
     """
     Validate CSV file format and structure.
     
@@ -226,6 +267,10 @@ def validate_csv(file, dataset_type: str, strict_mode: bool = False) -> Tuple[bo
         Tuple of (is_valid, error_message)
     """
     try:
+        sample = _read_file_sample(file)
+        if _looks_like_binary(sample):
+            return False, "Uploaded file does not appear to be a valid text CSV. Please upload a CSV file exported from your data source."
+
         # Try to read CSV with encoding detection
         df = parse_csv(file)
         
@@ -250,7 +295,7 @@ def validate_csv(file, dataset_type: str, strict_mode: bool = False) -> Tuple[bo
         if empty_cols:
             return False, f"The following columns are completely empty: {', '.join(empty_cols)}. Please ensure all columns contain data."
         
-        # Strict mode: Check required columns (for backward compatibility with tests)
+        # Strict mode: Check required columns
         if strict_mode and dataset_type in REQUIRED_COLUMNS:
             required = REQUIRED_COLUMNS[dataset_type]
             missing = [col for col in required if col not in df.columns]
@@ -1163,7 +1208,12 @@ def parse_from_csv(csv_string: str) -> pd.DataFrame:
         Parsed DataFrame
     """
     from io import StringIO
-    return pd.read_csv(StringIO(csv_string))
+    return pd.read_csv(
+        StringIO(csv_string),
+        dtype=str,
+        keep_default_na=False,
+        engine="python",
+    )
 
 
 def dataframes_equivalent(df1: pd.DataFrame, df2: pd.DataFrame, 
@@ -1335,7 +1385,12 @@ def parse_from_csv(csv_string: str) -> pd.DataFrame:
         Parsed DataFrame
     """
     from io import StringIO
-    return pd.read_csv(StringIO(csv_string))
+    return pd.read_csv(
+        StringIO(csv_string),
+        dtype=str,
+        keep_default_na=False,
+        engine="python",
+    )
 
 
 def dataframes_equivalent(df1: pd.DataFrame, df2: pd.DataFrame, tolerance: float = 1e-9) -> bool:

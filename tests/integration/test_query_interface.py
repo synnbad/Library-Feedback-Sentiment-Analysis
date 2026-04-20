@@ -22,23 +22,17 @@ import pytest
 
 # Try to import required modules
 try:
-    from modules.rag_query import RAGQuery
+    from modules.rag_query import RAGQuery, get_missing_rag_dependencies
     from modules.database import init_database, execute_update, execute_query
     from modules.csv_handler import store_dataset
     import pandas as pd
-    import tempfile
     import os
-    DEPENDENCIES_AVAILABLE = True
+    from pathlib import Path
+    from uuid import uuid4
+    DEPENDENCIES_AVAILABLE = len(get_missing_rag_dependencies()) == 0
 except ImportError as e:
     DEPENDENCIES_AVAILABLE = False
     SKIP_REASON = f"Required dependencies not available: {str(e)}"
-
-
-# Skip all tests if dependencies are not available
-pytestmark = pytest.mark.skipif(
-    not DEPENDENCIES_AVAILABLE,
-    reason="ChromaDB, sentence-transformers, or other dependencies not installed"
-)
 
 
 @pytest.fixture
@@ -46,25 +40,37 @@ def setup_test_db():
     """Set up a temporary test database."""
     if not DEPENDENCIES_AVAILABLE:
         pytest.skip("Dependencies not available")
+
+    workspace_tmp_root = Path.cwd() / ".tmp_pytest_query"
+    workspace_tmp_root.mkdir(exist_ok=True)
     
     # Create temporary database
-    temp_db = tempfile.NamedTemporaryFile(delete=False, suffix='.db')
-    temp_db.close()
+    temp_db_path = workspace_tmp_root / f"{uuid4().hex}.db"
     
     # Override database path
     from config import settings
     original_db_path = settings.Settings.DATABASE_PATH
-    settings.Settings.DATABASE_PATH = temp_db.name
+    original_chroma_path = settings.Settings.CHROMA_DB_PATH
+    temp_chroma_dir = workspace_tmp_root / f"chroma_{uuid4().hex}"
+    temp_chroma_dir.mkdir()
+    settings.Settings.DATABASE_PATH = str(temp_db_path)
+    settings.Settings.CHROMA_DB_PATH = str(temp_chroma_dir)
     
     # Initialize database
     init_database()
     
-    yield temp_db.name
+    yield str(temp_db_path)
     
     # Cleanup
     settings.Settings.DATABASE_PATH = original_db_path
+    settings.Settings.CHROMA_DB_PATH = original_chroma_path
     try:
-        os.unlink(temp_db.name)
+        os.unlink(temp_db_path)
+    except:
+        pass
+    try:
+        import shutil
+        shutil.rmtree(temp_chroma_dir, ignore_errors=True)
     except:
         pass
 
@@ -95,12 +101,13 @@ def test_query_interface_basic_structure():
     
     Validates Requirements: 2.6
     """
-    # Verify the streamlit_app.py has the query interface function
+    from ui.query_ui import show_query_interface_page
+
+    # Verify the page registry points at the modularized query interface
     import streamlit_app
-    assert hasattr(streamlit_app, 'show_query_interface_page')
-    
-    # Verify the function is callable
-    assert callable(streamlit_app.show_query_interface_page)
+    assert "Query Interface" in streamlit_app.PAGE_REGISTRY
+    assert streamlit_app.PAGE_REGISTRY["Query Interface"] == ("ui.query_ui", "show_query_interface_page")
+    assert callable(show_query_interface_page)
 
 
 @pytest.mark.skipif(not DEPENDENCIES_AVAILABLE, reason="Full dependencies required")

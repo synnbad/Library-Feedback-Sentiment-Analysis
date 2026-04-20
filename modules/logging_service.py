@@ -24,7 +24,7 @@ import time
 import traceback
 import json
 import functools
-from datetime import datetime
+from datetime import datetime, UTC
 from pathlib import Path
 from typing import Optional, Any
 
@@ -45,7 +45,7 @@ class StructuredFormatter(logging.Formatter):
 
     def format(self, record: logging.LogRecord) -> str:
         payload = {
-            "ts": datetime.utcfromtimestamp(record.created).isoformat() + "Z",
+            "ts": datetime.fromtimestamp(record.created, UTC).isoformat().replace("+00:00", "Z"),
             "level": record.levelname,
             "module": record.name,
             "func": record.funcName,
@@ -84,7 +84,7 @@ class DatabaseLogHandler(logging.Handler):
                 VALUES (?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
-                    datetime.utcfromtimestamp(record.created).isoformat(),
+                    datetime.fromtimestamp(record.created, UTC).isoformat(),
                     record.levelname,
                     record.name,
                     record.funcName,

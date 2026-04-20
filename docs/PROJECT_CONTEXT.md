@@ -194,10 +194,12 @@ Return answer + citations
 
 ### Environment Variables (.env)
 ```
-OLLAMA_HOST=http://localhost:11434
+OLLAMA_URL=http://localhost:11434
 OLLAMA_MODEL=llama3.2:3b
+EMBEDDING_MODEL=all-MiniLM-L6-v2
+EMBEDDING_LOCAL_FILES_ONLY=true
 DATABASE_PATH=data/library.db
-CHROMA_PATH=data/chroma_db
+CHROMA_DB_PATH=data/chroma_db
 ```
 
 ### Settings (config/settings.py)
@@ -362,7 +364,7 @@ streamlit run streamlit_app.py
 **"Ollama not found"**
 - Install Ollama from https://ollama.ai
 - Ensure it's running: `ollama list`
-- Check OLLAMA_HOST in .env
+- Check `OLLAMA_URL` in `.env`
 
 **"Model not found"**
 - Pull model: `ollama pull llama3.2:3b`

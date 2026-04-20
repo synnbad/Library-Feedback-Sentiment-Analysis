@@ -1,5 +1,9 @@
 # Repository Rehabilitation - Refactor Summary
 
+> 2026-04-19 update: this historical refactor summary has been superseded by
+> the current green full-suite baseline, local-first embedding configuration,
+> and dependency strategy documented in `docs/DEPENDENCY_STRATEGY.md`.
+
 **Date:** 2024
 **Branch:** `refactor/library-assessment-repo-cleanup`
 **Status:** Phase 1 Complete - Documentation and Modularization

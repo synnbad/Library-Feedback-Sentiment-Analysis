@@ -29,8 +29,12 @@ ENV/
 env.bak/
 venv.bak/
 .deps/
+.codex_tmp/
 .t/
 .tmp/
+.tmp_*/
+tmp*/
+pytest-cache-files-*/
 
 # IDE
 .vscode/

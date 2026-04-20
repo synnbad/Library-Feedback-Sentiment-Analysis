@@ -23,9 +23,11 @@ If dependencies are not available, this test will be skipped.
 
 import pytest
 import pandas as pd
-import tempfile
 import os
+import shutil
 from io import StringIO
+from pathlib import Path
+from uuid import uuid4
 
 # Try to import required modules
 try:
@@ -54,27 +56,26 @@ def setup_test_environment():
     """Set up a temporary test database and ChromaDB."""
     if not DEPENDENCIES_AVAILABLE:
         pytest.skip("Dependencies not available")
-    
-    # Create temporary database
-    temp_db = tempfile.NamedTemporaryFile(delete=False, suffix='.db')
-    temp_db.close()
-    
-    # Create temporary ChromaDB directory
-    temp_chroma_dir = tempfile.mkdtemp()
+
+    workspace_tmp_root = Path.cwd() / ".tmp_e2e"
+    workspace_tmp_root.mkdir(exist_ok=True)
+    temp_db_path = workspace_tmp_root / f"{uuid4().hex}.db"
+    temp_chroma_dir = workspace_tmp_root / f"chroma_{uuid4().hex}"
+    temp_chroma_dir.mkdir()
     
     # Override paths
     original_db_path = settings.Settings.DATABASE_PATH
     original_chroma_path = settings.Settings.CHROMA_DB_PATH
     
-    settings.Settings.DATABASE_PATH = temp_db.name
-    settings.Settings.CHROMA_DB_PATH = temp_chroma_dir
+    settings.Settings.DATABASE_PATH = str(temp_db_path)
+    settings.Settings.CHROMA_DB_PATH = str(temp_chroma_dir)
     
     # Initialize database
     init_database()
     
     yield {
-        'db_path': temp_db.name,
-        'chroma_path': temp_chroma_dir
+        'db_path': str(temp_db_path),
+        'chroma_path': str(temp_chroma_dir)
     }
     
     # Cleanup
@@ -82,13 +83,12 @@ def setup_test_environment():
     settings.Settings.CHROMA_DB_PATH = original_chroma_path
     
     try:
-        os.unlink(temp_db.name)
+        os.unlink(temp_db_path)
     except:
         pass
     
     try:
-        import shutil
-        shutil.rmtree(temp_chroma_dir)
+        shutil.rmtree(temp_chroma_dir, ignore_errors=True)
     except:
         pass
 

@@ -7,20 +7,24 @@ Provides authentication, data upload, RAG query interface, qualitative analysis,
 visualization, and report generation capabilities.
 """
 
+from importlib import import_module
+
 import streamlit as st
+from config.settings import Settings
 from modules import auth
 
-# Import UI modules
-from ui.auth_ui import show_login_page
-from ui.home_ui import show_home_page
-from ui.data_upload_ui import show_data_upload_page
-from ui.query_ui import show_query_interface_page
-from ui.qualitative_ui import show_qualitative_analysis_page
-from ui.quantitative_ui import show_quantitative_analysis_page
-from ui.visualization_ui import show_visualizations_page
-from ui.report_ui import show_report_generation_page
-from ui.governance_ui import show_data_governance_page
-from ui.logs_ui import show_logs_page
+
+PAGE_REGISTRY = {
+    "Home": ("ui.home_ui", "show_home_page"),
+    "Data Upload": ("ui.data_upload_ui", "show_data_upload_page"),
+    "Query Interface": ("ui.query_ui", "show_query_interface_page"),
+    "Qualitative Analysis": ("ui.qualitative_ui", "show_qualitative_analysis_page"),
+    "Quantitative Analysis": ("ui.quantitative_ui", "show_quantitative_analysis_page"),
+    "Visualizations": ("ui.visualization_ui", "show_visualizations_page"),
+    "Report Generation": ("ui.report_ui", "show_report_generation_page"),
+    "Data Governance": ("ui.governance_ui", "show_data_governance_page"),
+    "Logs & Monitoring": ("ui.logs_ui", "show_logs_page"),
+}
 
 
 # Page configuration
@@ -32,68 +36,83 @@ st.set_page_config(
 )
 
 
+def _render_ui(module_name: str, function_name: str) -> None:
+    """Import and render a UI module on demand."""
+    try:
+        module = import_module(module_name)
+        render_fn = getattr(module, function_name)
+    except ModuleNotFoundError as exc:
+        missing = exc.name or "a required dependency"
+        st.error(f"This feature is unavailable because `{missing}` is not installed.")
+        st.info("Run `pip install -r requirements.txt` and restart Streamlit to enable the full system.")
+        return
+    except Exception as exc:
+        st.error(f"Failed to load this page: {exc}")
+        return
+
+    render_fn()
+
+
+def _handle_logout() -> None:
+    """Log out the current user and clear page-specific session state."""
+    for key in ("query_session_id", "messages", "rag_engine"):
+        if key in st.session_state:
+            del st.session_state[key]
+
+    auth.logout_user(st.session_state)
+    st.rerun()
+
+
 def show_main_app():
     """Display main application interface with navigation."""
     # Sidebar with navigation
     with st.sidebar:
         st.title("Library Assessment")
+        st.markdown(f"**User:** {st.session_state.username}")
+        if st.button("Logout", use_container_width=True):
+            _handle_logout()
         st.markdown("---")
-        
+
         # Navigation menu
         page = st.radio(
             "Navigation",
-            [
-                "Home",
-                "Data Upload",
-                "Query Interface",
-                "Qualitative Analysis",
-                "Quantitative Analysis",
-                "Visualizations",
-                "Report Generation",
-                "Data Governance",
-                "Logs & Monitoring"
-            ],
+            list(PAGE_REGISTRY.keys()),
             key="navigation"
         )
-    
-    # Main content area based on selected page
-    if page == "Home":
-        show_home_page()
-    elif page == "Data Upload":
-        show_data_upload_page()
-    elif page == "Query Interface":
-        show_query_interface_page()
-    elif page == "Qualitative Analysis":
-        show_qualitative_analysis_page()
-    elif page == "Quantitative Analysis":
-        show_quantitative_analysis_page()
-    elif page == "Visualizations":
-        show_visualizations_page()
-    elif page == "Report Generation":
-        show_report_generation_page()
-    elif page == "Data Governance":
-        show_data_governance_page()
-    elif page == "Logs & Monitoring":
-        show_logs_page()
+
+    module_name, function_name = PAGE_REGISTRY[page]
+    _render_ui(module_name, function_name)
 
 
 def main():
     """Main application entry point."""
-    # Run any pending DB migrations
-    from modules.database import migrate_database
+    from modules.database import init_database, migrate_database
+
+    try:
+        init_database()
+    except Exception as exc:
+        st.error(f"Database initialization failed: {exc}")
+        return
+
     try:
         migrate_database()
-    except Exception:
-        pass  # Non-fatal - app still works without migration
+    except Exception as exc:
+        st.warning(f"Database migration could not be completed automatically: {exc}")
 
     # Initialize session state for authentication
     auth.init_session_state(st.session_state)
-    
-    # Auto-login with default user for development
+
     if not auth.is_authenticated(st.session_state):
-        auth.login_user(st.session_state, "demo_user")
-    
-    # Show main app directly (authentication disabled for development)
+        if Settings.ENABLE_DEMO_LOGIN:
+            auth.login_user(st.session_state, Settings.DEMO_USERNAME)
+            st.warning(
+                f"Demo login mode is enabled for `{Settings.DEMO_USERNAME}`. "
+                "Disable `ENABLE_DEMO_LOGIN` to require real authentication."
+            )
+        else:
+            _render_ui("ui.auth_ui", "show_login_page")
+            return
+
     show_main_app()
 
 

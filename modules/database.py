@@ -104,6 +104,7 @@ INITIAL_BACKOFF_MS = 100
 MAX_BACKOFF_MS = 5000
 
 T = TypeVar('T')
+CORE_TABLES = {"datasets", "survey_responses", "usage_statistics", "schema_version"}
 
 
 def retry_on_db_lock(max_retries: int = MAX_RETRIES) -> Callable:
@@ -375,6 +376,26 @@ def init_database(db_path: Optional[str] = None) -> None:
     print(f"Database initialized successfully at {db_path}")
 
 
+def _default_database_needs_initialization(db_path: str) -> bool:
+    """Return True when the default on-disk database is missing its schema."""
+    path = Path(db_path)
+    if not path.exists() or path.stat().st_size == 0:
+        return True
+
+    try:
+        conn = sqlite3.connect(db_path)
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT name FROM sqlite_master WHERE type = 'table' AND name IN (?, ?, ?, ?)",
+            tuple(CORE_TABLES),
+        )
+        existing = {row[0] for row in cursor.fetchall()}
+        conn.close()
+        return not CORE_TABLES.issubset(existing)
+    except sqlite3.DatabaseError:
+        return True
+
+
 @contextmanager
 def get_db_connection(db_path: Optional[str] = None):
     """
@@ -394,6 +415,8 @@ def get_db_connection(db_path: Optional[str] = None):
     """
     if db_path is None:
         db_path = Settings.DATABASE_PATH
+        if _default_database_needs_initialization(db_path):
+            init_database(db_path)
     
     conn = sqlite3.connect(db_path)
     conn.row_factory = sqlite3.Row  # Enable column access by name

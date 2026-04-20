@@ -1,5 +1,10 @@
 # Baseline Functionality Documentation
 
+> Historical note: this file captures the pre-refactor baseline from 2026-04-13.
+> It intentionally mentions legacy FastAPI/code-organization issues that have
+> since been cleaned up. Use `README.md` and `docs/DEPENDENCY_STRATEGY.md` for
+> current runtime guidance.
+
 **Date:** 2026-04-13
 **Branch:** refactor/library-assessment-repo-cleanup
 **Purpose:** Document baseline functionality before refactoring

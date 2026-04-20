@@ -6,7 +6,11 @@ Includes chat functionality, conversation context management, and citation displ
 """
 
 import streamlit as st
-from modules.rag_query import RAGQuery
+from modules.rag_query import (
+    DependencyUnavailableError,
+    RAGQuery,
+    get_rag_dependency_status,
+)
 from modules import auth, csv_handler
 
 
@@ -19,9 +23,17 @@ def show_query_interface_page():
     if 'rag_engine' not in st.session_state:
         try:
             st.session_state.rag_engine = RAGQuery()
+        except DependencyUnavailableError as e:
+            st.error("RAG query features are unavailable in this environment.")
+            st.markdown(str(e))
+            st.markdown("### Runtime dependency status")
+            for status in get_rag_dependency_status().values():
+                availability = "Available" if status["available"] else "Missing"
+                st.markdown(f"- `{status['package']}`: {availability}")
+            return
         except Exception as e:
             st.error(f"Failed to initialize RAG engine: {str(e)}")
-            st.info("Please ensure ChromaDB is properly configured.")
+            st.info("Please ensure ChromaDB and sentence-transformers are installed and configured.")
             return
     
     # Initialize secure session ID for conversation context
@@ -51,25 +63,45 @@ def show_query_interface_page():
 
     rag_engine = st.session_state.rag_engine
 
-    # Auto-index any datasets not yet in ChromaDB
+    # Show indexing status and let the user opt into the indexing work.
     datasets = csv_handler.get_datasets()
-    newly_indexed = []
+    indexed_datasets = []
+    unindexed_datasets = []
     for ds in datasets:
-        if not rag_engine._is_dataset_indexed(ds['id']):
-            try:
-                n = rag_engine.index_dataset(ds['id'])
-                if n > 0:
-                    newly_indexed.append(f"{ds['name']} ({n} docs)")
-            except Exception as e:
-                st.warning(f"Could not index dataset '{ds['name']}': {e}")
-    if newly_indexed:
-        st.info(f"Indexed datasets: {', '.join(newly_indexed)}")
+        try:
+            if rag_engine._is_dataset_indexed(ds['id']):
+                indexed_datasets.append(ds)
+            else:
+                unindexed_datasets.append(ds)
+        except Exception as e:
+            st.warning(f"Could not check indexing status for dataset '{ds['name']}': {e}")
+
+    if not datasets:
+        st.info("Upload a dataset in the Data Upload page before using the query interface.")
+    elif unindexed_datasets:
+        st.warning(
+            f"{len(unindexed_datasets)} dataset(s) still need indexing before they can be searched."
+        )
+        if st.button("Index Available Datasets", use_container_width=True):
+            newly_indexed = []
+            for ds in unindexed_datasets:
+                try:
+                    n = rag_engine.index_dataset(ds['id'])
+                    if n > 0:
+                        newly_indexed.append(f"{ds['name']} ({n} docs)")
+                except Exception as e:
+                    st.warning(f"Could not index dataset '{ds['name']}': {e}")
+            if newly_indexed:
+                st.success(f"Indexed datasets: {', '.join(newly_indexed)}")
+            st.rerun()
+    else:
+        st.success(f"{len(indexed_datasets)} indexed dataset(s) are ready for querying.")
 
     # Test Ollama connection
     is_connected, error_msg = rag_engine.test_ollama_connection()
     
     if not is_connected:
-        st.error(f"Error: {error_msg}")
+        st.warning(f"Ollama is unavailable: {error_msg}")
         st.markdown("""
         ### How to start Ollama:
         
@@ -80,10 +112,11 @@ def show_query_interface_page():
         
         For more information, visit: https://ollama.ai
         """)
-        return
-    
-    # Show connection status
-    st.success("Connected to Ollama")
+    else:
+        st.success("Connected to Ollama")
+
+    has_indexed_data = len(indexed_datasets) > 0
+    query_enabled = is_connected and has_indexed_data
     
     # Get conversation history
     conversation_history = rag_engine.get_conversation_history(st.session_state.query_session_id)
@@ -110,7 +143,7 @@ def show_query_interface_page():
             )
             st.rerun()
     with col3:
-        st.metric("Model", "Llama 3.2")
+        st.metric("Model", rag_engine.model_name)
     
     st.markdown("---")
     
@@ -126,6 +159,8 @@ def show_query_interface_page():
                     st.error("Context Too Large")
                 elif error_type == "llm_timeout":
                     st.error("Response Generation Timed Out")
+                elif error_type == "ollama_model_missing":
+                    st.error("Ollama Model Missing")
                 elif error_type == "ollama_connection_failed":
                     st.error("Ollama Connection Failed")
                 elif error_type == "exception":
@@ -150,8 +185,17 @@ def show_query_interface_page():
                                 st.session_state.messages.append({"role": "user", "content": suggestion})
                                 st.rerun()
     
+    if not has_indexed_data:
+        st.info("Index at least one dataset on this page before asking questions.")
+    if has_indexed_data and not is_connected:
+        st.info("Querying is paused until Ollama is available.")
+
     # Chat input
-    if prompt := st.chat_input("Ask a question about your library data..."):
+    prompt = st.chat_input(
+        "Ask a question about your library data...",
+        disabled=not query_enabled
+    )
+    if prompt:
         # Add user message to chat history
         st.session_state.messages.append({"role": "user", "content": prompt})
         
@@ -181,6 +225,9 @@ def show_query_interface_page():
                         st.markdown(result["answer"])
                     elif error_type == "llm_timeout":
                         st.error("Response Generation Timed Out")
+                        st.markdown(result["answer"])
+                    elif error_type == "ollama_model_missing":
+                        st.error("Ollama Model Missing")
                         st.markdown(result["answer"])
                     elif error_type == "ollama_connection_failed":
                         st.error("Ollama Connection Failed")
@@ -274,7 +321,7 @@ def show_query_interface_page():
         ### Getting Started
         
         1. **Upload Data**: First, upload your CSV files in the Data Upload section
-        2. **Index Data**: The system automatically indexes uploaded data for searching
+        2. **Index Data**: Use the "Index Available Datasets" button on this page before searching
         3. **Ask Questions**: Type natural language questions about your data
         4. **Review Answers**: Answers include citations showing which data sources were used
         5. **Follow Up**: Use suggested questions or ask follow-up questions to explore further

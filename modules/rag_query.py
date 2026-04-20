@@ -65,10 +65,11 @@ Requirements Implemented:
 Configuration (config/settings.py):
 - OLLAMA_MODEL: LLM model name (default: llama3.2:3b)
 - EMBEDDING_MODEL: Embedding model (default: all-MiniLM-L6-v2)
+- EMBEDDING_LOCAL_FILES_ONLY: Load embedding models from local cache only (default: true)
 - CONTEXT_WINDOW_SIZE: Conversation turns to keep (default: 5)
 - TOP_K_RETRIEVAL: Documents to retrieve (default: 5)
 - MAX_CONTEXT_TOKENS: Token limit for context (default: 4000)
-- LLM_GENERATION_TIMEOUT_SECONDS: Timeout for generation (default: 60)
+- LLM_GENERATION_TIMEOUT_SECONDS: Timeout for generation (default: 90)
 
 Usage Example:
     # Initialize RAG engine
@@ -95,15 +96,42 @@ Usage Example:
 Author: FERPA-Compliant RAG DSS Team
 """
 
-import chromadb
-from chromadb.config import Settings as ChromaSettings
-import ollama
-from sentence_transformers import SentenceTransformer
-import pandas as pd
 from datetime import datetime
+from types import SimpleNamespace
 from typing import Optional, List, Dict, Any, Tuple
-import signal
-from contextlib import contextmanager
+
+try:
+    import chromadb
+    from chromadb.config import Settings as ChromaSettings
+    from chromadb.utils.embedding_functions import DefaultEmbeddingFunction
+    CHROMADB_IMPORT_ERROR = None
+except ImportError as exc:
+    chromadb = SimpleNamespace(PersistentClient=None)
+
+    class ChromaSettings:  # type: ignore[override]
+        """Fallback placeholder used when ChromaDB is unavailable."""
+
+        def __init__(self, *args, **kwargs):
+            self.args = args
+            self.kwargs = kwargs
+
+    DefaultEmbeddingFunction = None
+    CHROMADB_IMPORT_ERROR = exc
+
+try:
+    import ollama
+    OLLAMA_IMPORT_ERROR = None
+except ImportError as exc:
+    ollama = SimpleNamespace(Client=None, generate=None, list=None)
+    OLLAMA_IMPORT_ERROR = exc
+
+try:
+    from sentence_transformers import SentenceTransformer
+    SENTENCE_TRANSFORMERS_IMPORT_ERROR = None
+except ImportError as exc:
+    SentenceTransformer = None
+    SENTENCE_TRANSFORMERS_IMPORT_ERROR = exc
+
 from modules.database import execute_query, execute_update
 from modules.csv_handler import add_query_to_provenance
 from modules.pii_detector import redact_pii
@@ -113,42 +141,93 @@ from modules.logging_service import get_logger, log_operation
 logger = get_logger(__name__)
 
 
+def _dependency_available(package_name: str) -> bool:
+    """Check whether a runtime dependency is currently importable/patchable."""
+    if package_name == "chromadb":
+        return getattr(chromadb, "PersistentClient", None) is not None
+    if package_name == "ollama":
+        return any(getattr(ollama, attr, None) is not None for attr in ("Client", "generate", "list"))
+    if package_name == "sentence-transformers":
+        return SentenceTransformer is not None
+    raise ValueError(f"Unknown dependency: {package_name}")
+
+
+def get_rag_dependency_status() -> Dict[str, Dict[str, Optional[str]]]:
+    """Return runtime availability details for optional RAG dependencies."""
+    return {
+        "chromadb": {
+            "package": "chromadb",
+            "available": _dependency_available("chromadb"),
+            "error": None if CHROMADB_IMPORT_ERROR is None else str(CHROMADB_IMPORT_ERROR),
+        },
+        "sentence-transformers": {
+            "package": "sentence-transformers",
+            "available": _dependency_available("sentence-transformers"),
+            "error": None if SENTENCE_TRANSFORMERS_IMPORT_ERROR is None else str(SENTENCE_TRANSFORMERS_IMPORT_ERROR),
+        },
+        "ollama": {
+            "package": "ollama",
+            "available": _dependency_available("ollama"),
+            "error": None if OLLAMA_IMPORT_ERROR is None else str(OLLAMA_IMPORT_ERROR),
+        },
+    }
+
+
+def get_missing_rag_dependencies(include_ollama: bool = False) -> List[str]:
+    """List missing packages required for RAG retrieval and optional generation."""
+    required = ["chromadb"]
+    if include_ollama:
+        required.append("ollama")
+    return [package for package in required if not _dependency_available(package)]
+
+
+def format_rag_dependency_error(
+    missing_dependencies: List[str],
+    purpose: str = "RAG features",
+) -> str:
+    """Build a consistent recovery message for missing dependencies."""
+    packages = ", ".join(missing_dependencies)
+    return (
+        f"{purpose} are unavailable because these packages are missing: {packages}. "
+        "Install them with `pip install -r requirements.txt` and restart the app."
+    )
+
+
+class DependencyUnavailableError(RuntimeError):
+    """Raised when required RAG dependencies are unavailable."""
+
+    def __init__(self, missing_dependencies: List[str], purpose: str = "RAG features"):
+        self.missing_dependencies = missing_dependencies
+        self.purpose = purpose
+        super().__init__(format_rag_dependency_error(missing_dependencies, purpose))
+
+
+def _require_rag_dependencies(include_ollama: bool = False, purpose: str = "RAG features") -> None:
+    """Raise a consistent error when required dependencies are missing."""
+    missing_dependencies = get_missing_rag_dependencies(include_ollama=include_ollama)
+    if missing_dependencies:
+        raise DependencyUnavailableError(missing_dependencies, purpose)
+
+
 class TimeoutError(Exception):
     """Exception raised when an operation times out."""
     pass
 
 
-@contextmanager
-def timeout(seconds):
-    """
-    Context manager for timing out operations.
-    
-    Args:
-        seconds: Timeout duration in seconds
-        
-    Raises:
-        TimeoutError: If operation exceeds timeout
-    """
-    def timeout_handler(signum, frame):
-        raise TimeoutError(f"Operation timed out after {seconds} seconds")
-    
-    # Set the signal handler
-    old_handler = signal.signal(signal.SIGALRM, timeout_handler)
-    signal.alarm(seconds)
-    
-    try:
-        yield
-    finally:
-        # Restore the old handler and cancel the alarm
-        signal.alarm(0)
-        signal.signal(signal.SIGALRM, old_handler)
+class ModelNotFoundError(RuntimeError):
+    """Exception raised when the configured Ollama model is unavailable."""
+    pass
 
 
 class RAGQuery:
     """RAG query engine for natural language question answering."""
+
+    DEFAULT_DISTANCE_THRESHOLD = 1.45
     
     def __init__(self):
         """Initialize RAG engine with Ollama and ChromaDB."""
+        _require_rag_dependencies(purpose="RAG query engine initialization")
+
         self.ollama_url = Settings.OLLAMA_URL
         self.model_name = Settings.OLLAMA_MODEL
         self.embedding_model_name = Settings.EMBEDDING_MODEL
@@ -156,9 +235,12 @@ class RAGQuery:
         self.context_window = Settings.CONTEXT_WINDOW_SIZE
         self.llm_timeout = Settings.LLM_GENERATION_TIMEOUT_SECONDS
         self.max_context_tokens = Settings.MAX_CONTEXT_TOKENS
+        self.embedding_backend = "sentence-transformers"
+        self.collection_uses_internal_embeddings = False
         
-        # Initialize embedding model
-        self.embedding_model = SentenceTransformer(self.embedding_model_name)
+        # Initialize embedding model, falling back to Chroma's local default when
+        # sentence-transformers is installed but the model cannot be loaded cleanly.
+        self.embedding_model = self._initialize_embedding_model()
         
         # Initialize ChromaDB in embedded mode
         self.chroma_client = chromadb.PersistentClient(
@@ -167,13 +249,76 @@ class RAGQuery:
         )
         
         # Get or create collection
-        self.collection = self.chroma_client.get_or_create_collection(
-            name="assessment_documents",
-            metadata={"description": "Library assessment data for RAG"}
-        )
+        collection_kwargs = {
+            "name": "assessment_documents",
+            "metadata": {"description": "Library assessment data for RAG"},
+        }
+        if self.collection_uses_internal_embeddings:
+            collection_kwargs["embedding_function"] = self.embedding_model
+        self.collection = self.chroma_client.get_or_create_collection(**collection_kwargs)
         
         # Conversation history storage
         self.conversation_histories = {}
+
+    def _initialize_embedding_model(self):
+        """Initialize the preferred embedding backend with a local fallback."""
+        sentence_transformer_error = None
+
+        if SentenceTransformer is not None:
+            try:
+                return SentenceTransformer(
+                    self.embedding_model_name,
+                    local_files_only=Settings.EMBEDDING_LOCAL_FILES_ONLY,
+                )
+            except Exception as exc:
+                sentence_transformer_error = exc
+                logger.warning(
+                    "Falling back to ChromaDB default embeddings after sentence-transformers initialization failed: %s",
+                    exc,
+                    extra={
+                        "operation": "embedding_init_fallback",
+                        "embedding_model": self.embedding_model_name,
+                        "local_files_only": Settings.EMBEDDING_LOCAL_FILES_ONLY,
+                        "error": str(exc),
+                    },
+                )
+
+        if DefaultEmbeddingFunction is None:
+            if sentence_transformer_error is None:
+                raise DependencyUnavailableError(
+                    ["sentence-transformers"],
+                    "Embedding backend initialization",
+                )
+            raise RuntimeError(
+                "Failed to initialize sentence-transformers and no ChromaDB fallback "
+                f"is available. Original error: {sentence_transformer_error}"
+            ) from sentence_transformer_error
+
+        try:
+            self.embedding_backend = "chromadb-default"
+            self.collection_uses_internal_embeddings = True
+            return DefaultEmbeddingFunction()
+        except Exception as exc:
+            if sentence_transformer_error is not None:
+                raise RuntimeError(
+                    "Failed to initialize both sentence-transformers and ChromaDB "
+                    "default embeddings. "
+                    f"sentence-transformers error: {sentence_transformer_error}; "
+                    f"ChromaDB fallback error: {exc}"
+                ) from exc
+            raise RuntimeError(
+                "Failed to initialize ChromaDB default embeddings."
+            ) from exc
+
+    def _encode_texts(self, texts: List[str]) -> List[List[float]]:
+        """Encode text only when using the sentence-transformers backend."""
+        if self.collection_uses_internal_embeddings:
+            raise RuntimeError("Manual embedding generation is unavailable for the active backend.")
+
+        embeddings = self.embedding_model.encode(texts)
+        if hasattr(embeddings, "tolist"):
+            return embeddings.tolist()
+        return embeddings
     
     def test_ollama_connection(self) -> Tuple[bool, Optional[str]]:
         """
@@ -182,6 +327,9 @@ class RAGQuery:
         Returns:
             Tuple of (is_connected, error_message)
         """
+        if getattr(ollama, "list", None) is None:
+            return False, format_rag_dependency_error(["ollama"], "Ollama connectivity checks")
+
         try:
             # Try to list models
             ollama.list()
@@ -203,10 +351,7 @@ class RAGQuery:
         """
         if not texts:
             return
-        
-        # Generate embeddings
-        embeddings = self.embedding_model.encode(texts).tolist()
-        
+
         # Use stable IDs based on dataset_id + source_row_id to prevent duplicates
         ids = [
             f"ds{meta.get('dataset_id', 'x')}_row{meta.get('source_row_id', i)}"
@@ -214,12 +359,14 @@ class RAGQuery:
         ]
         
         # Add to ChromaDB
-        self.collection.add(
-            documents=texts,
-            embeddings=embeddings,
-            metadatas=metadata_list,
-            ids=ids
-        )
+        add_kwargs = {
+            "documents": texts,
+            "metadatas": metadata_list,
+            "ids": ids,
+        }
+        if not self.collection_uses_internal_embeddings:
+            add_kwargs["embeddings"] = self._encode_texts(texts)
+        self.collection.add(**add_kwargs)
     
     def _is_dataset_indexed(self, dataset_id: int) -> bool:
         """Check if a dataset already has documents in ChromaDB."""
@@ -366,7 +513,7 @@ class RAGQuery:
         self,
         question: str,
         k: Optional[int] = None,
-        distance_threshold: float = 1.45
+        distance_threshold: float = DEFAULT_DISTANCE_THRESHOLD
     ) -> List[Dict[str, Any]]:
         """
         Retrieve top-k relevant documents from ChromaDB.
@@ -390,10 +537,12 @@ class RAGQuery:
 
         # Retrieve more candidates to ensure cross-dataset coverage
         n_candidates = min(k * 3, count)
-        results = self.collection.query(
-            query_texts=[question],
-            n_results=n_candidates
-        )
+        query_kwargs = {"n_results": n_candidates}
+        if self.collection_uses_internal_embeddings:
+            query_kwargs["query_texts"] = [question]
+        else:
+            query_kwargs["query_embeddings"] = self._encode_texts([question])
+        results = self.collection.query(**query_kwargs)
         
         # Format results, filtering by distance threshold and redacting PII
         documents = []
@@ -415,6 +564,29 @@ class RAGQuery:
 
         # Return top-k after filtering
         return documents[:k]
+
+    def _calculate_confidence(self, docs: List[Dict[str, Any]]) -> float:
+        """Estimate answer confidence from retrieval distances normalized to the acceptance threshold."""
+        if not docs:
+            return 0.0
+
+        scores = []
+        for doc in docs:
+            distance = doc.get("distance")
+            if distance is None:
+                scores.append(0.5)
+                continue
+
+            try:
+                distance_value = float(distance)
+            except (TypeError, ValueError):
+                scores.append(0.5)
+                continue
+
+            score = 1.0 - (distance_value / self.DEFAULT_DISTANCE_THRESHOLD)
+            scores.append(max(0.0, min(1.0, score)))
+
+        return sum(scores) / len(scores)
     
     def _estimate_token_count(self, text: str) -> int:
         """
@@ -469,7 +641,7 @@ class RAGQuery:
         
         Raises:
             ConnectionError: If Ollama process crashes or is unreachable
-            TimeoutError: If generation exceeds timeout (30 seconds)
+            TimeoutError: If generation exceeds timeout
             RuntimeError: For other Ollama failures
         """
         # Build a natural, conversational system prompt
@@ -500,30 +672,42 @@ class RAGQuery:
         prompt_parts.append("Answer concisely using the data above. Cite source numbers.")
 
         prompt = "\n".join(prompt_parts)
+        generation_options = {
+            "num_predict": 400,       # Enough for a good answer, faster than 600
+            "num_ctx": 4096,          # Cap context window - model default is 131k which is slow
+            "temperature": 0.3,
+            "top_p": 0.9,
+            "top_k": 40,              # Limit vocabulary search per token
+            "repeat_penalty": 1.1,    # Reduce repetition without extra compute
+        }
+
+        client_cls = getattr(ollama, "Client", None)
+        generate_fn = getattr(ollama, "generate", None)
+        if client_cls is None and generate_fn is None:
+            raise RuntimeError(format_rag_dependency_error(["ollama"], "Ollama generation"))
 
         try:
             # Import httpx for timeout configuration (ollama uses httpx internally)
             import httpx
-            
-            # Create a custom client with 30-second timeout
-            client = ollama.Client(
-                host=self.ollama_url,
-                timeout=httpx.Timeout(30.0, connect=5.0)  # 30s for generation, 5s for connection
-            )
-            
-            response = client.generate(
-                model=self.model_name,
-                prompt=prompt,
-                options={
-                    "num_predict": 400,       # Enough for a good answer, faster than 600
-                    "num_ctx": 4096,          # Cap context window - model default is 131k which is slow
-                    "temperature": 0.3,
-                    "top_p": 0.9,
-                    "top_k": 40,              # Limit vocabulary search per token
-                    "repeat_penalty": 1.1,    # Reduce repetition without extra compute
-                },
-                keep_alive="5m"
-            )
+
+            if client_cls is not None:
+                client = client_cls(
+                    host=self.ollama_url,
+                    timeout=httpx.Timeout(float(self.llm_timeout), connect=5.0)
+                )
+                response = client.generate(
+                    model=self.model_name,
+                    prompt=prompt,
+                    options=generation_options,
+                    keep_alive="5m"
+                )
+            else:
+                response = generate_fn(
+                    model=self.model_name,
+                    prompt=prompt,
+                    options=generation_options,
+                    keep_alive="5m"
+                )
             return response['response']
         except (ConnectionError, ConnectionRefusedError, ConnectionResetError) as e:
             # Ollama process crashed or is not running
@@ -545,7 +729,7 @@ class RAGQuery:
                 f"Ollama request timeout: {str(e)}",
                 extra={"operation": "generate_answer", "error": str(e)}
             )
-            raise TimeoutError(f"Ollama request timed out after 30 seconds")
+            raise TimeoutError(f"Ollama request timed out after {self.llm_timeout} seconds")
         except Exception as e:
             error_msg = str(e).lower()
             # Check for timeout-related errors in message
@@ -554,7 +738,16 @@ class RAGQuery:
                     f"Ollama timeout: {str(e)}",
                     extra={"operation": "generate_answer", "error": str(e)}
                 )
-                raise TimeoutError(f"Response generation timed out after 30 seconds")
+                raise TimeoutError(f"Response generation timed out after {self.llm_timeout} seconds")
+            elif "model" in error_msg and "not found" in error_msg:
+                logger.error(
+                    f"Ollama model not found: {str(e)}",
+                    extra={"operation": "generate_answer", "error": str(e), "model": self.model_name}
+                )
+                raise ModelNotFoundError(
+                    f"Configured model '{self.model_name}' is not available locally. "
+                    f"Run `ollama pull {self.model_name}` and try again."
+                )
             # Check for connection-related errors in message
             elif any(keyword in error_msg for keyword in ["connection", "refused", "reset", "unreachable", "broken pipe"]):
                 logger.error(
@@ -599,10 +792,10 @@ class RAGQuery:
         if not docs:
             return {
                 "answer": (
-                    "I couldn't find anything in your uploaded datasets that relates to that question. "
-                    "This could mean the data hasn't been uploaded yet, or the question uses terms "
+                    "I couldn't find relevant data in your uploaded datasets for that question. "
+                    "This could mean you still need to upload data, or the question uses terms "
                     "that don't appear in the data.\n\n"
-                    "Try rephrasing - for example, instead of 'patron satisfaction' try 'how do patrons feel' "
+                    "Try to rephrase your question - for example, instead of 'patron satisfaction' try 'how do patrons feel' "
                     "or 'what do survey responses say'. You can also check what's available in the Data Upload page."
                 ),
                 "confidence": 0.0,
@@ -645,7 +838,7 @@ class RAGQuery:
         except ConnectionError as e:
             # Handle Ollama connection failures gracefully (crashes, not running, etc.)
             return {
-                "answer": f"**Ollama Connection Error**\n\nThe Ollama service is not responding. This usually means Ollama has crashed or is not running.\n\n**To fix this:**\n\n1. Open a terminal\n2. Start Ollama: `ollama serve`\n3. In another terminal, verify the model is available: `ollama list`\n4. If the model '{self.model_name}' is not listed, pull it: `ollama pull {self.model_name}`\n5. Try your question again\n\n**Error details:** {str(e)}",
+                "answer": f"**Cannot connect to Ollama**\n\nThe Ollama service is not responding. This usually means Ollama has crashed, is not running, or the Ollama package is unavailable.\n\n**To fix this:**\n\n1. Open a terminal\n2. Start Ollama: `ollama serve`\n3. In another terminal, verify the model is available: `ollama list`\n4. If the model '{self.model_name}' is not listed, pull it: `ollama pull {self.model_name}`\n5. Try your question again\n\n**Error details:** {str(e)}",
                 "confidence": 0.0,
                 "citations": [],
                 "suggested_questions": [
@@ -658,7 +851,7 @@ class RAGQuery:
             }
         except TimeoutError as e:
             return {
-                "answer": f"**Request Timeout**\n\nThe response generation timed out after 30 seconds. Please try:\n\n- Asking a simpler question\n- Being more specific about what you want to know\n- Checking system resources (CPU/memory)\n- Clearing conversation context to reduce processing load\n\n**Error details:** {str(e)}",
+                "answer": f"**Request Timeout**\n\nThe response generation timed out after {self.llm_timeout} seconds. Please try:\n\n- Asking a simpler question\n- Being more specific about what you want to know\n- Checking system resources (CPU/memory)\n- Clearing conversation context to reduce processing load\n\n**Error details:** {str(e)}",
                 "confidence": 0.0,
                 "citations": [],
                 "suggested_questions": [
@@ -669,7 +862,43 @@ class RAGQuery:
                 "processing_time_ms": int((datetime.now() - start_time).total_seconds() * 1000),
                 "error_type": "llm_timeout"
             }
+        except ModelNotFoundError as e:
+            return {
+                "answer": (
+                    f"**Ollama Model Missing**\n\n"
+                    f"The configured model `{self.model_name}` is not installed locally.\n\n"
+                    f"**To fix this:**\n\n"
+                    f"1. Open a terminal\n"
+                    f"2. Run: `ollama pull {self.model_name}`\n"
+                    f"3. Verify it appears in `ollama list`\n"
+                    f"4. Try your question again\n\n"
+                    f"**Error details:** {str(e)}"
+                ),
+                "confidence": 0.0,
+                "citations": [],
+                "suggested_questions": [
+                    "How do I install the configured model?",
+                    "Check available Ollama models",
+                    "Verify local model setup"
+                ],
+                "processing_time_ms": int((datetime.now() - start_time).total_seconds() * 1000),
+                "error_type": "ollama_model_missing"
+            }
         except RuntimeError as e:
+            error_msg = str(e).lower()
+            if any(keyword in error_msg for keyword in ["connection", "refused", "reset", "unreachable", "broken pipe", "cannot connect"]):
+                return {
+                    "answer": f"**Cannot connect to Ollama**\n\nThe Ollama service is not responding. This usually means Ollama has crashed, is not running, or the Ollama package is unavailable.\n\n**To fix this:**\n\n1. Open a terminal\n2. Start Ollama: `ollama serve`\n3. In another terminal, verify the model is available: `ollama list`\n4. If the model '{self.model_name}' is not listed, pull it: `ollama pull {self.model_name}`\n5. Try your question again\n\n**Error details:** {str(e)}",
+                    "confidence": 0.0,
+                    "citations": [],
+                    "suggested_questions": [
+                        "Check Ollama status",
+                        "Verify model availability",
+                        "Review connection settings"
+                    ],
+                    "processing_time_ms": int((datetime.now() - start_time).total_seconds() * 1000),
+                    "error_type": "ollama_connection_failed"
+                }
             # Handle other Ollama failures
             return {
                 "answer": f"**Ollama Error**\n\nAn error occurred while generating the response.\n\n**Error details:** {str(e)}\n\nPlease check:\n- Ollama is running: `ollama serve`\n- Model is available: `ollama list`\n- System resources (CPU/memory)",
@@ -711,9 +940,8 @@ class RAGQuery:
                 "answer": answer
             })
         
-        # Calculate confidence (simple heuristic based on retrieval distances)
-        avg_distance = sum(doc.get('distance', 1.0) for doc in docs) / len(docs)
-        confidence = max(0.0, min(1.0, 1.0 - avg_distance))
+        # Calculate confidence using retrieval distances normalized to the acceptance threshold.
+        confidence = self._calculate_confidence(docs)
         
         # Generate suggested questions
         suggested_questions = self._generate_suggested_questions(question, docs)
@@ -823,7 +1051,3 @@ class RAGQuery:
             List of conversation turns
         """
         return self.conversation_histories.get(session_id, [])
-
-
-# Add missing import
-from typing import Tuple

@@ -12,7 +12,8 @@ Validates Requirements: 2.5
 
 import pytest
 from unittest.mock import Mock, patch, MagicMock
-from modules.rag_query import RAGQuery, TimeoutError
+from modules import rag_query
+from modules.rag_query import DependencyUnavailableError, ModelNotFoundError, RAGQuery, TimeoutError
 from config.settings import Settings
 
 
@@ -23,6 +24,75 @@ def mock_rag_engine():
          patch('modules.rag_query.chromadb.PersistentClient'):
         engine = RAGQuery()
         return engine
+
+
+def test_rag_query_initialization_requires_core_dependencies(monkeypatch):
+    """RAGQuery should fail with a helpful error when core packages are unavailable."""
+    monkeypatch.setattr(rag_query, "SentenceTransformer", None)
+    monkeypatch.setattr(rag_query.chromadb, "PersistentClient", None)
+
+    with pytest.raises(DependencyUnavailableError) as exc_info:
+        rag_query.RAGQuery()
+
+    error_message = str(exc_info.value)
+    assert "chromadb" in error_message
+    assert "pip install -r requirements.txt" in error_message
+
+
+def test_rag_query_falls_back_to_chromadb_default_embeddings():
+    """RAGQuery should keep working when sentence-transformers model init fails."""
+    mock_collection = Mock()
+    mock_client = Mock()
+    mock_client.get_or_create_collection.return_value = mock_collection
+    mock_default_embedding = Mock()
+
+    with patch('modules.rag_query.SentenceTransformer', side_effect=ValueError("bad embedding model")), \
+         patch('modules.rag_query.DefaultEmbeddingFunction', return_value=mock_default_embedding), \
+         patch('modules.rag_query.chromadb.PersistentClient', return_value=mock_client):
+        engine = RAGQuery()
+
+    assert engine.embedding_backend == "chromadb-default"
+    assert engine.collection_uses_internal_embeddings is True
+    assert engine.embedding_model is mock_default_embedding
+    assert mock_client.get_or_create_collection.call_count == 1
+    assert (
+        mock_client.get_or_create_collection.call_args.kwargs["embedding_function"]
+        is mock_default_embedding
+    )
+
+
+def test_rag_query_loads_sentence_transformer_from_local_cache_first():
+    """Embedding initialization should avoid runtime network lookups by default."""
+    mock_collection = Mock()
+    mock_client = Mock()
+    mock_client.get_or_create_collection.return_value = mock_collection
+    mock_embedding = Mock()
+
+    with patch('modules.rag_query.SentenceTransformer', return_value=mock_embedding) as sentence_transformer, \
+         patch('modules.rag_query.chromadb.PersistentClient', return_value=mock_client):
+        engine = RAGQuery()
+
+    sentence_transformer.assert_called_once_with(
+        Settings.EMBEDDING_MODEL,
+        local_files_only=True,
+    )
+    assert engine.embedding_backend == "sentence-transformers"
+    assert engine.collection_uses_internal_embeddings is False
+    assert engine.embedding_model is mock_embedding
+
+
+def test_ollama_dependency_error_is_actionable():
+    """Missing Ollama support should return a recovery-focused message."""
+    with patch('modules.rag_query.SentenceTransformer'), \
+         patch('modules.rag_query.chromadb.PersistentClient'), \
+         patch.object(rag_query.ollama, 'list', None):
+        engine = RAGQuery()
+        is_connected, error_msg = engine.test_ollama_connection()
+
+        assert is_connected is False
+        assert error_msg is not None
+        assert "ollama" in error_msg.lower()
+        assert "pip install -r requirements.txt" in error_msg
 
 
 def test_ollama_connection_failure():
@@ -135,6 +205,33 @@ def test_llm_timeout_error(mock_rag_engine):
     assert len(result["suggested_questions"]) > 0
 
 
+def test_ollama_model_missing_error(mock_rag_engine):
+    """
+    Test that missing local Ollama models return an actionable error message.
+
+    Validates Requirements: 2.5
+    """
+    mock_docs = [
+        {
+            "text": "Sample data",
+            "metadata": {"dataset_id": "1", "dataset_type": "survey"},
+            "distance": 0.5
+        }
+    ]
+    mock_rag_engine.retrieve_relevant_docs = Mock(return_value=mock_docs)
+    mock_rag_engine.generate_answer = Mock(
+        side_effect=ModelNotFoundError("Configured model 'llama3.2:3b' is not available locally.")
+    )
+
+    result = mock_rag_engine.query("What is the data about?")
+
+    assert result["error_type"] == "ollama_model_missing"
+    assert "ollama pull" in result["answer"]
+    assert "model" in result["answer"].lower()
+    assert result["confidence"] == 0.0
+    assert len(result["suggested_questions"]) > 0
+
+
 def test_ollama_connection_failed_during_generation(mock_rag_engine):
     """
     Test that Ollama connection failures during generation return appropriate error message.
@@ -192,6 +289,19 @@ def test_successful_query_no_error(mock_rag_engine):
     assert "answer" in result
     assert result["confidence"] > 0.0
     assert len(result["citations"]) > 0
+
+
+def test_confidence_uses_retrieval_threshold_not_absolute_one(mock_rag_engine):
+    """Distances above 1.0 can still be relevant under Chroma's configured threshold."""
+    docs = [
+        {"distance": 1.2},
+        {"distance": 1.0},
+    ]
+
+    confidence = mock_rag_engine._calculate_confidence(docs)
+
+    assert confidence > 0.0
+    assert confidence < 1.0
 
 
 def test_context_size_estimation(mock_rag_engine):

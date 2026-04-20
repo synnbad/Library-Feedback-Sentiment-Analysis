@@ -1,5 +1,9 @@
 # Repository Rehabilitation - Final Implementation Report
 
+> 2026-04-19 update: follow-up stabilization is complete for the current branch.
+> The collected legacy backup test was removed, local-first embeddings are
+> documented, and the full test baseline is now 201 passed.
+
 **Date:** April 13, 2026  
 **Branch:** `refactor/library-assessment-repo-cleanup`  
 **Status:** ✅ MAJOR IMPLEMENTATION COMPLETE

@@ -33,6 +33,10 @@ class Settings:
         "EMBEDDING_MODEL",
         "all-MiniLM-L6-v2"
     )
+    EMBEDDING_LOCAL_FILES_ONLY = os.getenv(
+        "EMBEDDING_LOCAL_FILES_ONLY",
+        "true"
+    ).lower() == "true"
     
     # Ollama configuration
     OLLAMA_URL = os.getenv(
@@ -56,13 +60,14 @@ class Settings:
     SENTIMENT_POSITIVE_THRESHOLD = float(os.getenv("SENTIMENT_POSITIVE_THRESHOLD", "0.1"))
     SENTIMENT_NEGATIVE_THRESHOLD = float(os.getenv("SENTIMENT_NEGATIVE_THRESHOLD", "-0.1"))
     MIN_RESPONSES_FOR_ANALYSIS = int(os.getenv("MIN_RESPONSES_FOR_ANALYSIS", "10"))
+    ENABLE_ENHANCED_SENTIMENT = os.getenv("ENABLE_ENHANCED_SENTIMENT", "false").lower() == "true"
     
     # Report generation configuration
     REPORT_TIMEOUT_SECONDS = int(os.getenv("REPORT_TIMEOUT_SECONDS", "120"))
     MAX_REPORT_DATASETS = int(os.getenv("MAX_REPORT_DATASETS", "10"))
     
     # Query operation configuration
-    LLM_GENERATION_TIMEOUT_SECONDS = int(os.getenv("LLM_GENERATION_TIMEOUT_SECONDS", "60"))
+    LLM_GENERATION_TIMEOUT_SECONDS = int(os.getenv("LLM_GENERATION_TIMEOUT_SECONDS", "90"))
     MAX_CONTEXT_TOKENS = int(os.getenv("MAX_CONTEXT_TOKENS", "4000"))  # Conservative limit for 8K context models
     
     # Visualization configuration
@@ -73,6 +78,8 @@ class Settings:
     # Authentication configuration
     SESSION_TIMEOUT_MINUTES = int(os.getenv("SESSION_TIMEOUT_MINUTES", "60"))
     MAX_LOGIN_ATTEMPTS = int(os.getenv("MAX_LOGIN_ATTEMPTS", "5"))
+    ENABLE_DEMO_LOGIN = os.getenv("ENABLE_DEMO_LOGIN", "false").lower() == "true"
+    DEMO_USERNAME = os.getenv("DEMO_USERNAME", "demo_user")
     
     # PII detection patterns
     PII_PATTERNS = {

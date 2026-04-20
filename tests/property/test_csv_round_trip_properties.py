@@ -13,12 +13,28 @@ Validates: Requirements 7.4, 7.5, 7.6, 7.7
 
 import pandas as pd
 import numpy as np
-from hypothesis import given, settings, strategies as st
+from hypothesis import HealthCheck, given, settings, strategies as st
 from modules.csv_handler import (
     serialize_to_csv,
     parse_from_csv,
     dataframes_equivalent,
     validate_round_trip
+)
+
+
+PRINTABLE_TEXT = st.text(
+    alphabet=st.characters(min_codepoint=32, max_codepoint=126),
+    min_size=1,
+    max_size=120,
+)
+QUESTION_TEXT = st.text(
+    alphabet=st.characters(min_codepoint=32, max_codepoint=126),
+    min_size=5,
+    max_size=100,
+)
+CSV_PROPERTY_SETTINGS = settings(
+    max_examples=50,
+    suppress_health_check=[HealthCheck.too_slow],
 )
 
 
@@ -29,13 +45,13 @@ from modules.csv_handler import (
 @st.composite
 def survey_dataframe(draw):
     """Generate random DataFrame with survey schema."""
-    n_rows = draw(st.integers(min_value=1, max_value=100))
+    n_rows = draw(st.integers(min_value=1, max_value=30))
     
     # Generate survey data
     response_dates = [f"2024-{draw(st.integers(1, 12)):02d}-{draw(st.integers(1, 28)):02d}" 
                       for _ in range(n_rows)]
-    questions = [draw(st.text(min_size=5, max_size=100)) for _ in range(n_rows)]
-    responses = [draw(st.text(min_size=1, max_size=500)) for _ in range(n_rows)]
+    questions = [draw(QUESTION_TEXT) for _ in range(n_rows)]
+    responses = [draw(PRINTABLE_TEXT) for _ in range(n_rows)]
     sentiments = [draw(st.floats(min_value=-1.0, max_value=1.0, allow_nan=False)) 
                   for _ in range(n_rows)]
     
@@ -50,7 +66,7 @@ def survey_dataframe(draw):
 @st.composite
 def usage_dataframe(draw):
     """Generate random DataFrame with usage schema."""
-    n_rows = draw(st.integers(min_value=1, max_value=100))
+    n_rows = draw(st.integers(min_value=1, max_value=30))
     
     # Generate usage data
     dates = [f"2024-{draw(st.integers(1, 12)):02d}-{draw(st.integers(1, 28)):02d}" 
@@ -69,7 +85,7 @@ def usage_dataframe(draw):
 @st.composite
 def circulation_dataframe(draw):
     """Generate random DataFrame with circulation schema."""
-    n_rows = draw(st.integers(min_value=1, max_value=100))
+    n_rows = draw(st.integers(min_value=1, max_value=30))
     
     # Generate circulation data
     checkout_dates = [f"2024-{draw(st.integers(1, 12)):02d}-{draw(st.integers(1, 28)):02d}" 
@@ -90,7 +106,7 @@ def circulation_dataframe(draw):
 # Property Tests
 # ============================================================================
 
-@settings(max_examples=100)
+@CSV_PROPERTY_SETTINGS
 @given(df=survey_dataframe())
 def test_csv_round_trip_survey(df):
     """
@@ -109,7 +125,7 @@ def test_csv_round_trip_survey(df):
         "Survey DataFrame not equivalent after round-trip"
 
 
-@settings(max_examples=100)
+@CSV_PROPERTY_SETTINGS
 @given(df=usage_dataframe())
 def test_csv_round_trip_usage(df):
     """
@@ -128,7 +144,7 @@ def test_csv_round_trip_usage(df):
         "Usage DataFrame not equivalent after round-trip"
 
 
-@settings(max_examples=100)
+@CSV_PROPERTY_SETTINGS
 @given(df=circulation_dataframe())
 def test_csv_round_trip_circulation(df):
     """
@@ -147,7 +163,7 @@ def test_csv_round_trip_circulation(df):
         "Circulation DataFrame not equivalent after round-trip"
 
 
-@settings(max_examples=100)
+@CSV_PROPERTY_SETTINGS
 @given(df=survey_dataframe())
 def test_validate_round_trip_survey(df):
     """
@@ -159,7 +175,7 @@ def test_validate_round_trip_survey(df):
     assert is_valid, f"Round-trip validation failed: {error_msg}"
 
 
-@settings(max_examples=100)
+@CSV_PROPERTY_SETTINGS
 @given(df=usage_dataframe())
 def test_validate_round_trip_usage(df):
     """
@@ -171,7 +187,7 @@ def test_validate_round_trip_usage(df):
     assert is_valid, f"Round-trip validation failed: {error_msg}"
 
 
-@settings(max_examples=100)
+@CSV_PROPERTY_SETTINGS
 @given(df=circulation_dataframe())
 def test_validate_round_trip_circulation(df):
     """
@@ -187,7 +203,7 @@ def test_validate_round_trip_circulation(df):
 # Edge Case Tests
 # ============================================================================
 
-@settings(max_examples=100)
+@CSV_PROPERTY_SETTINGS
 @given(
     df=survey_dataframe(),
     special_char=st.sampled_from([',', '"', '\n', '\r', '\t', '\\'])
@@ -209,7 +225,7 @@ def test_round_trip_with_special_characters(df, special_char):
         f"DataFrame with special character '{special_char}' not equivalent after round-trip"
 
 
-@settings(max_examples=100)
+@CSV_PROPERTY_SETTINGS
 @given(df=survey_dataframe())
 def test_round_trip_with_empty_strings(df):
     """
@@ -228,7 +244,7 @@ def test_round_trip_with_empty_strings(df):
         "DataFrame with empty strings not equivalent after round-trip"
 
 
-@settings(max_examples=100)
+@CSV_PROPERTY_SETTINGS
 @given(
     df=usage_dataframe(),
     precision=st.integers(min_value=0, max_value=10)

@@ -1,5 +1,10 @@
 # Repository Audit Summary
 
+> Historical note: this audit is a point-in-time inventory from 2026-04-13.
+> Some listed files have since been removed, including the empty
+> `docs/AMIA_PROJECT_REPORT.md` placeholder and the duplicate
+> `tests/integration/test_analysis_report_flow_backup.py` test file.
+
 **Date:** 2026-04-13
 **Repository:** Library-Assessment-Decision-Support-System
 

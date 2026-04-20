@@ -87,7 +87,25 @@ Author: FERPA-Compliant RAG DSS Team
 
 import pandas as pd
 import json
-from textblob import TextBlob
+import os
+from types import SimpleNamespace
+
+try:
+    from textblob import TextBlob
+    TEXTBLOB_AVAILABLE = True
+except ImportError:
+    TEXTBLOB_AVAILABLE = False
+
+    class TextBlob:  # type: ignore[override]
+        """Minimal fallback used when textblob is not installed."""
+
+        def __init__(self, text: str):
+            self.raw = text
+            self.sentiment = SimpleNamespace(polarity=0.0, subjectivity=0.0)
+
+# Avoid noisy Windows-specific joblib warnings when scikit-learn tries to call
+# deprecated/missing WMIC to detect physical cores.
+os.environ.setdefault("LOKY_MAX_CPU_COUNT", str(max(1, min(os.cpu_count() or 1, 8))))
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.cluster import KMeans
 from datetime import datetime
@@ -105,12 +123,18 @@ logger = get_logger(__name__)
 try:
     from modules.sentiment_enhanced import analyze_sentiment as analyze_sentiment_enhanced
     from modules.sentiment_enhanced import analyze_dataset_sentiment as analyze_dataset_sentiment_enhanced
-    ENHANCED_SENTIMENT_AVAILABLE = True
-    print("Enhanced sentiment analysis (RoBERTa) available")
-except ImportError:
+    ENHANCED_SENTIMENT_AVAILABLE = Settings.ENABLE_ENHANCED_SENTIMENT
+    if ENHANCED_SENTIMENT_AVAILABLE:
+        print("Enhanced sentiment analysis (RoBERTa) enabled")
+    else:
+        print("Enhanced sentiment module available but disabled. Using TextBlob path by default.")
+except Exception:
     ENHANCED_SENTIMENT_AVAILABLE = False
     print("Enhanced sentiment analysis not available. Using TextBlob as fallback.")
     print("To enable: pip install transformers torch")
+
+if not TEXTBLOB_AVAILABLE:
+    print("TextBlob not available. Using zeroed fallback sentiment scores.")
 
 
 def analyze_sentiment(text: str) -> Dict[str, Any]:
@@ -178,7 +202,7 @@ def analyze_sentiment(text: str) -> Dict[str, Any]:
             "polarity": 0.0,
             "subjectivity": 0.0,
             "category": "neutral",
-            "error": f"Sentiment analysis error: {str(e)}"
+            "error": f"TextBlob processing error: {str(e)}"
         }
 
 
@@ -287,7 +311,8 @@ def analyze_dataset_sentiment(dataset_id: int) -> Dict[str, Any]:
 @log_operation("theme_extraction")
 def extract_themes(
     dataset_id: int,
-    n_themes: Optional[int] = None
+    n_themes: Optional[int] = None,
+    num_themes: Optional[int] = None
 ) -> Dict[str, Any]:
     """
     Identify recurring themes using TF-IDF and K-means clustering.
@@ -295,10 +320,14 @@ def extract_themes(
     Args:
         dataset_id: Dataset identifier
         n_themes: Number of themes to identify (uses Settings.DEFAULT_N_THEMES if not provided)
+        num_themes: Backward-compatible alias for n_themes
         
     Returns:
         Dict with identified themes and warnings
     """
+    if num_themes is not None:
+        n_themes = num_themes
+
     if n_themes is None:
         n_themes = Settings.DEFAULT_N_THEMES
     

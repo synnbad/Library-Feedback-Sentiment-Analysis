@@ -4,7 +4,15 @@ Home UI Module
 Displays the dashboard and system status for the Library Assessment Decision Support System.
 """
 
+from importlib.util import find_spec
+from pathlib import Path
+from urllib.error import URLError
+from urllib.request import urlopen
+
 import streamlit as st
+
+from config.settings import Settings
+from modules.database import execute_query
 
 
 def show_home_page():
@@ -45,32 +53,87 @@ def show_home_page():
     # System status
     st.markdown("---")
     st.markdown("### System Status")
-    
-    col1, col2, col3 = st.columns(3)
-    
+
+    system_status = display_system_status()
+    quick_stats = display_quick_stats()
+
+    col1, col2, col3, col4 = st.columns(4)
+
     with col1:
-        st.metric("Status", "Online")
-    
+        st.metric("App", system_status["streamlit"])
+
     with col2:
-        st.metric("Processing", "Local Only")
-    
+        st.metric("Database", system_status["database"])
+
     with col3:
-        st.metric("FERPA Compliant", "Yes")
+        st.metric("Ollama", system_status["ollama"])
+
+    with col4:
+        st.metric("ChromaDB", system_status["chromadb"])
+
+    st.markdown("---")
+    st.markdown("### Quick Stats")
+
+    stats_col1, stats_col2, stats_col3 = st.columns(3)
+
+    with stats_col1:
+        st.metric("Datasets", quick_stats["datasets"])
+
+    with stats_col2:
+        st.metric("Survey Responses", quick_stats["survey_responses"])
+
+    with stats_col3:
+        st.metric("Users", quick_stats["users"])
 
 
 def display_system_status():
-    """Check and display system component status."""
-    status = {
-        "streamlit": "Online",
-        "database": "Connected",
-        "ollama": "Unknown",  # Would need to check actual connection
-        "chromadb": "Unknown"
-    }
+    """Check local component status for the dashboard."""
+    status = {"streamlit": "Ready"}
+
+    try:
+        execute_query("SELECT 1 AS ok")
+        status["database"] = "Connected"
+    except Exception:
+        status["database"] = "Unavailable"
+
+    chroma_installed = find_spec("chromadb") is not None
+    chroma_path = Path(Settings.CHROMA_DB_PATH)
+    if chroma_installed and chroma_path.exists():
+        status["chromadb"] = "Ready"
+    elif chroma_installed:
+        status["chromadb"] = "Installed"
+    else:
+        status["chromadb"] = "Missing"
+
+    ollama_endpoint = f"{Settings.OLLAMA_URL.rstrip('/')}/api/tags"
+    try:
+        with urlopen(ollama_endpoint, timeout=1.5) as response:
+            status["ollama"] = "Connected" if 200 <= response.status < 300 else "Degraded"
+    except URLError:
+        status["ollama"] = "Offline"
+    except Exception:
+        status["ollama"] = "Unavailable"
+
     return status
 
 
 def display_quick_stats():
-    """Display quick statistics from database."""
-    # This would query the database for actual stats
-    # Placeholder for now
-    pass
+    """Display quick statistics from the local database."""
+    stats = {
+        "datasets": 0,
+        "survey_responses": 0,
+        "users": 0,
+    }
+
+    try:
+        dataset_rows = execute_query("SELECT COUNT(*) AS count FROM datasets")
+        response_rows = execute_query("SELECT COUNT(*) AS count FROM survey_responses")
+        user_rows = execute_query("SELECT COUNT(*) AS count FROM users")
+
+        stats["datasets"] = dataset_rows[0]["count"]
+        stats["survey_responses"] = response_rows[0]["count"]
+        stats["users"] = user_rows[0]["count"]
+    except Exception:
+        pass
+
+    return stats

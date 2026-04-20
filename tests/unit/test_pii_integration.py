@@ -16,39 +16,60 @@ from unittest.mock import Mock, patch, MagicMock
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
 
 # Mock dependencies before importing modules
-sys.modules['textblob'] = MagicMock()
-sys.modules['sklearn'] = MagicMock()
-sys.modules['sklearn.feature_extraction'] = MagicMock()
-sys.modules['sklearn.feature_extraction.text'] = MagicMock()
-sys.modules['sklearn.cluster'] = MagicMock()
-sys.modules['chromadb'] = MagicMock()
-sys.modules['chromadb.config'] = MagicMock()
-sys.modules['ollama'] = MagicMock()
-sys.modules['sentence_transformers'] = MagicMock()
+_MOCKED_MODULES = {
+    'textblob': MagicMock(),
+    'sklearn': MagicMock(),
+    'sklearn.feature_extraction': MagicMock(),
+    'sklearn.feature_extraction.text': MagicMock(),
+    'sklearn.cluster': MagicMock(),
+    'chromadb': MagicMock(),
+    'chromadb.config': MagicMock(),
+    'ollama': MagicMock(),
+    'sentence_transformers': MagicMock(),
+}
+_ORIGINAL_MODULES = {name: sys.modules.get(name) for name in _MOCKED_MODULES}
+sys.modules.update(_MOCKED_MODULES)
 
 from modules.rag_query import RAGQuery
 from modules.report_generator import generate_narrative
 from modules.qualitative_analysis import generate_summary
 
+for name, original_module in _ORIGINAL_MODULES.items():
+    if original_module is None:
+        sys.modules.pop(name, None)
+    else:
+        sys.modules[name] = original_module
+
+
+@pytest.fixture
+def mock_rag_dependencies():
+    """Patch heavy RAG dependencies so tests are order-independent."""
+    with patch('modules.rag_query.SentenceTransformer'), \
+         patch('modules.rag_query.chromadb.PersistentClient'):
+        yield
+
 
 class TestRAGQueryPIIRedaction:
     """Test PII redaction in RAG query answers."""
     
-    @patch('modules.rag_query.ollama.generate')
+    @patch('modules.rag_query.ollama.Client')
     @patch('modules.rag_query.execute_update')
     @patch('modules.rag_query.execute_query')
-    def test_query_redacts_pii_from_answer(self, mock_query, mock_update, mock_generate):
+    def test_query_redacts_pii_from_answer(self, mock_query, mock_update, mock_client_cls, mock_rag_dependencies):
         """Test that query() redacts PII from LLM-generated answers."""
         # Setup mocks
-        mock_generate.return_value = {
+        mock_client = Mock()
+        mock_client.generate.return_value = {
             'response': 'Contact John at john.doe@example.com or call 555-123-4567 for more info.'
         }
+        mock_client_cls.return_value = mock_client
         mock_update.return_value = 1
         
         # Create RAG instance
         rag = RAGQuery()
         
         # Mock collection query to return documents
+        rag.collection.count = Mock(return_value=1)
         rag.collection.query = Mock(return_value={
             'documents': [['Sample document text']],
             'metadatas': [[{'dataset_id': '1', 'dataset_type': 'survey'}]],
@@ -64,21 +85,24 @@ class TestRAGQueryPIIRedaction:
         assert 'john.doe@example.com' not in result['answer']
         assert '555-123-4567' not in result['answer']
     
-    @patch('modules.rag_query.ollama.generate')
+    @patch('modules.rag_query.ollama.Client')
     @patch('modules.rag_query.execute_update')
     @patch('modules.rag_query.execute_query')
-    def test_query_preserves_non_pii_content(self, mock_query, mock_update, mock_generate):
+    def test_query_preserves_non_pii_content(self, mock_query, mock_update, mock_client_cls, mock_rag_dependencies):
         """Test that query() preserves non-PII content."""
         # Setup mocks
-        mock_generate.return_value = {
+        mock_client = Mock()
+        mock_client.generate.return_value = {
             'response': 'The library has 5000 books and serves 1000 students.'
         }
+        mock_client_cls.return_value = mock_client
         mock_update.return_value = 1
         
         # Create RAG instance
         rag = RAGQuery()
         
         # Mock collection query
+        rag.collection.count = Mock(return_value=1)
         rag.collection.query = Mock(return_value={
             'documents': [['Sample document text']],
             'metadatas': [[{'dataset_id': '1', 'dataset_type': 'usage'}]],

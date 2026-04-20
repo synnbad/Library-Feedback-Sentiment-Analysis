@@ -841,12 +841,13 @@ Centralized configuration management with environment variable support.
 - `OLLAMA_URL`: Ollama server URL (default: http://localhost:11434)
 - `OLLAMA_MODEL`: LLM model name (default: llama3.2:3b)
 - `EMBEDDING_MODEL`: Embedding model (default: all-MiniLM-L6-v2)
+- `EMBEDDING_LOCAL_FILES_ONLY`: Load embeddings from local cache only (default: true)
 
 #### RAG Configuration
 - `CONTEXT_WINDOW_SIZE`: Conversation turns to keep (default: 5)
 - `TOP_K_RETRIEVAL`: Documents to retrieve (default: 5)
 - `MAX_CONTEXT_TOKENS`: Token limit for context (default: 4000)
-- `LLM_GENERATION_TIMEOUT_SECONDS`: Timeout for generation (default: 60)
+- `LLM_GENERATION_TIMEOUT_SECONDS`: Timeout for generation (default: 90)
 
 #### Analysis Configuration
 - `DEFAULT_N_THEMES`: Number of themes (default: 5)
@@ -879,6 +880,7 @@ Override settings using environment variables:
 ```bash
 export DATABASE_PATH="/custom/path/library.db"
 export OLLAMA_MODEL="phi3:mini"
+export EMBEDDING_LOCAL_FILES_ONLY="true"
 export CONTEXT_WINDOW_SIZE="10"
 ```
 

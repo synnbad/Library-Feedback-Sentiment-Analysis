@@ -163,7 +163,11 @@ def _show_upload_tab():
                 st.info("You can still upload it if you want to create a separate copy.")
             
             # Validate CSV
-            is_valid, error_msg = csv_handler.validate_csv(uploaded_file, dataset_type)
+            is_valid, error_msg = csv_handler.validate_csv(
+                uploaded_file,
+                dataset_type,
+                strict_mode=False
+            )
             
             if not is_valid:
                 st.error(f"Error: {error_msg}")
