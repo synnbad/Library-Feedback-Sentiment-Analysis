@@ -150,6 +150,24 @@ def test_no_relevant_data_error(mock_rag_engine):
     assert len(result["suggested_questions"]) > 0
 
 
+def test_query_reuses_completed_result_for_idempotency_key(mock_rag_engine, tmp_path, monkeypatch):
+    """A repeated Streamlit submit should return the stored result instead of running again."""
+    from modules.database import init_database
+
+    db_path = tmp_path / "query_idempotency.db"
+    monkeypatch.setattr(Settings, "DATABASE_PATH", str(db_path))
+    init_database(str(db_path))
+    mock_rag_engine.retrieve_relevant_docs = Mock(return_value=[])
+
+    first = mock_rag_engine.query("What data is available?", idempotency_key="query-test-key")
+    second = mock_rag_engine.query("What data is available?", idempotency_key="query-test-key")
+
+    assert first["error_type"] == "no_relevant_data"
+    assert second["error_type"] == "no_relevant_data"
+    assert second["idempotency_reused"] is True
+    assert mock_rag_engine.retrieve_relevant_docs.call_count == 1
+
+
 def test_context_too_large_error(mock_rag_engine):
     """
     Test that queries with too much context return appropriate error message.

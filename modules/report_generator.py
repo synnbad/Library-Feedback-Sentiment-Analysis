@@ -109,6 +109,7 @@ Author: FERPA-Compliant RAG DSS Team
 from typing import Dict, List, Optional, Any
 import statistics
 from modules.database import execute_query
+from modules import idempotency
 from modules.pii_detector import redact_pii
 from config.settings import Settings
 
@@ -408,6 +409,7 @@ def create_report(
     include_quantitative: bool = False,
     quantitative_analysis_ids: Optional[List[int]] = None,
     pinned_insights: Optional[List[Dict[str, Any]]] = None,
+    idempotency_key: Optional[str] = None,
     db_path: Optional[str] = None
 ) -> Dict[str, Any]:
     """
@@ -468,6 +470,23 @@ def create_report(
     
     if not dataset_ids:
         raise ValueError("At least one dataset_id must be provided")
+
+    report_key = idempotency_key or idempotency.make_key(
+        "create_report",
+        sorted(dataset_ids),
+        include_viz,
+        include_qualitative,
+        include_quantitative,
+        quantitative_analysis_ids or [],
+        [
+            {
+                "question": insight.get("question"),
+                "answer": insight.get("answer"),
+                "source": insight.get("source"),
+            }
+            for insight in pinned_insights or []
+        ],
+    )
     
     safe_pinned_insights = []
     for insight in pinned_insights or []:
@@ -486,7 +505,8 @@ def create_report(
             'generated_at': datetime.now().isoformat(),
             'author': 'Library Assessment Decision Support System',
             'datasets': [],
-            'dataset_ids': dataset_ids
+            'dataset_ids': dataset_ids,
+            'idempotency_key': report_key,
         },
         'executive_summary': '',
         'statistical_summaries': [],

@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Any, Dict, Iterable, List, MutableMapping
 
 from modules.database import execute_query, execute_update
+from modules import idempotency
 
 
 PINNED_INSIGHTS_KEY = "pinned_report_insights"
@@ -19,14 +20,26 @@ def pin_insight(
 ) -> None:
     """Store a query answer for later report drafting."""
     insights = list(state.get(PINNED_INSIGHTS_KEY, []))
+    insight_key = idempotency.make_key(
+        "pin_insight",
+        username or "session",
+        question,
+        answer,
+        source,
+    )
+    existing = _find_session_insight(insights, insight_key)
+    if existing:
+        return
+
     insight = {
         "question": question,
         "answer": answer,
         "source": source,
+        "idempotency_key": insight_key,
     }
     if username:
         insight["username"] = username
-        insight["id"] = persist_insight(username, question, answer, source)
+        insight["id"] = persist_insight(username, question, answer, source, insight_key)
     insights.append(insight)
     state[PINNED_INSIGHTS_KEY] = insights[-20:]
 
@@ -43,15 +56,36 @@ def get_pinned_insights(state: MutableMapping) -> List[Dict[str, str]]:
     return list(state.get(PINNED_INSIGHTS_KEY, []))
 
 
-def persist_insight(username: str, question: str, answer: str, source: str = "Query") -> int:
+def persist_insight(
+    username: str,
+    question: str,
+    answer: str,
+    source: str = "Query",
+    idempotency_key: str | None = None,
+) -> int:
     """Persist a pinned insight and return its row ID."""
-    return execute_update(
-        """
-        INSERT INTO pinned_insights (username, question, answer, source)
-        VALUES (?, ?, ?, ?)
-        """,
-        (username, question, answer, source),
+    key = idempotency_key or idempotency.make_key("pin_insight", username, question, answer, source)
+    existing = execute_query(
+        "SELECT id FROM pinned_insights WHERE idempotency_key = ?",
+        (key,),
     )
+    if existing:
+        return existing[0]["id"]
+
+    inserted_id = execute_update(
+        """
+        INSERT OR IGNORE INTO pinned_insights (username, question, answer, source, idempotency_key)
+        VALUES (?, ?, ?, ?, ?)
+        """,
+        (username, question, answer, source, key),
+    )
+    if inserted_id:
+        return inserted_id
+    existing = execute_query(
+        "SELECT id FROM pinned_insights WHERE idempotency_key = ?",
+        (key,),
+    )
+    return existing[0]["id"] if existing else 0
 
 
 def delete_pinned_insight(insight_id: int, username: str | None = None) -> None:
@@ -69,7 +103,7 @@ def load_pinned_insights(username: str, limit: int = 20) -> List[Dict[str, Any]]
     """Load recent pinned insights for a user from SQLite."""
     rows = execute_query(
         """
-        SELECT id, username, question, answer, source, created_at
+        SELECT id, username, question, answer, source, idempotency_key, created_at
         FROM pinned_insights
         WHERE username = ?
         ORDER BY created_at DESC, id DESC
@@ -107,15 +141,36 @@ def log_query_activity(
     citations: str = "[]",
     session_id: str | None = None,
     processing_time_ms: int = 0,
+    idempotency_key: str | None = None,
 ) -> int:
     """Record a query answer in the shared activity log."""
-    return execute_update(
+    if idempotency_key:
+        existing = execute_query(
+            "SELECT id FROM query_logs WHERE idempotency_key = ?",
+            (idempotency_key,),
+        )
+        if existing:
+            return existing[0]["id"]
+
+    inserted_id = execute_update(
         """
-        INSERT INTO query_logs (question, answer, confidence, citations, session_id, processing_time_ms)
-        VALUES (?, ?, ?, ?, ?, ?)
+        INSERT OR IGNORE INTO query_logs (
+            question, answer, confidence, citations, session_id, processing_time_ms, idempotency_key
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?)
         """,
-        (question, answer, confidence, citations, session_id, processing_time_ms),
+        (question, answer, confidence, citations, session_id, processing_time_ms, idempotency_key),
     )
+    if inserted_id:
+        return inserted_id
+    if idempotency_key:
+        existing = execute_query(
+            "SELECT id FROM query_logs WHERE idempotency_key = ?",
+            (idempotency_key,),
+        )
+        if existing:
+            return existing[0]["id"]
+    return 0
 
 
 def query_activity_summary(rows: Iterable[Dict[str, Any]]) -> Dict[str, Any]:
@@ -149,3 +204,11 @@ def format_insights_for_report(insights: Iterable[Dict[str, str]]) -> str:
         lines.append(insight.get("answer", ""))
         lines.append("")
     return "\n".join(lines).strip()
+
+
+def _find_session_insight(insights: List[Dict[str, Any]], idempotency_key: str) -> Dict[str, Any] | None:
+    """Return a matching session insight if one has already been pinned."""
+    for insight in insights:
+        if insight.get("idempotency_key") == idempotency_key:
+            return insight
+    return None

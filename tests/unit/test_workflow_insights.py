@@ -63,8 +63,8 @@ def test_format_insights_for_report_creates_markdown():
 def test_pin_insight_persists_when_username_present(monkeypatch):
     calls = []
 
-    def fake_persist(username, question, answer, source="Query"):
-        calls.append((username, question, answer, source))
+    def fake_persist(username, question, answer, source="Query", idempotency_key=None):
+        calls.append((username, question, answer, source, idempotency_key))
         return 42
 
     monkeypatch.setattr(workflow_insights, "persist_insight", fake_persist)
@@ -77,7 +77,8 @@ def test_pin_insight_persists_when_username_present(monkeypatch):
         username="admin",
     )
 
-    assert calls == [("admin", "What matters?", "Access.", "Query")]
+    assert calls[0][:4] == ("admin", "What matters?", "Access.", "Query")
+    assert calls[0][4]
     assert state[workflow_insights.PINNED_INSIGHTS_KEY][0]["id"] == 42
 
 
@@ -126,7 +127,7 @@ def test_log_query_activity_records_profile_native_answers(monkeypatch):
     )
 
     assert row_id == 99
-    assert "INSERT INTO query_logs" in calls[0][0]
+    assert "INSERT OR IGNORE INTO query_logs" in calls[0][0]
     assert calls[0][1] == (
         "What data do I have?",
         "Survey data is available.",
@@ -134,4 +135,22 @@ def test_log_query_activity_records_profile_native_answers(monkeypatch):
         "[]",
         "session-1",
         0,
+        None,
     )
+
+
+def test_pin_insight_is_idempotent_in_session(monkeypatch):
+    calls = []
+
+    def fake_persist(username, question, answer, source="Query", idempotency_key=None):
+        calls.append(idempotency_key)
+        return 42
+
+    monkeypatch.setattr(workflow_insights, "persist_insight", fake_persist)
+    state = {}
+
+    workflow_insights.pin_insight(state, "What matters?", "Access.", username="admin")
+    workflow_insights.pin_insight(state, "What matters?", "Access.", username="admin")
+
+    assert len(calls) == 1
+    assert len(workflow_insights.get_pinned_insights(state)) == 1

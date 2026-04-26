@@ -6,7 +6,7 @@ with statistical summaries, visualizations, and qualitative analysis.
 """
 
 import streamlit as st
-from modules import csv_handler, report_generator, auth, workflow_insights
+from modules import csv_handler, idempotency, report_generator, auth, workflow_insights
 from ui import smart_guidance
 
 
@@ -147,6 +147,31 @@ def show_report_generation_page():
         progress_bar = st.progress(0)
         status_text = st.empty()
         try:
+            report_key = idempotency.make_key(
+                "report_generation",
+                sorted(selected_dataset_ids),
+                include_visualizations,
+                include_qualitative,
+                include_quantitative,
+                custom_title,
+                [
+                    {
+                        "question": insight.get("question"),
+                        "answer": insight.get("answer"),
+                        "source": insight.get("source"),
+                    }
+                    for insight in pinned_insights
+                ],
+            )
+            if (
+                st.session_state.get("current_report_key") == report_key
+                and "current_report" in st.session_state
+            ):
+                progress_bar.empty()
+                status_text.empty()
+                st.info("This report has already been generated for the current selections.")
+                return
+
             status_text.text("Creating report structure...")
             progress_bar.progress(20)
 
@@ -156,6 +181,7 @@ def show_report_generation_page():
                 include_qualitative=include_qualitative,
                 include_quantitative=include_quantitative,
                 pinned_insights=pinned_insights,
+                idempotency_key=report_key,
             )
 
             if custom_title:
@@ -164,6 +190,7 @@ def show_report_generation_page():
             progress_bar.progress(100)
             status_text.text("Report generated successfully!")
             st.session_state.current_report = report
+            st.session_state.current_report_key = report_key
 
             auth.log_access(st.session_state.username,
                 f"Generated report for datasets: {', '.join([str(i) for i in selected_dataset_ids])}")

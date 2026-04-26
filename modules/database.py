@@ -95,7 +95,7 @@ from config.settings import Settings
 
 
 # Database schema version for migrations
-SCHEMA_VERSION = 4
+SCHEMA_VERSION = 5
 
 # Retry configuration for database locks
 MAX_RETRIES = 5
@@ -281,7 +281,8 @@ def init_database(db_path: Optional[str] = None) -> None:
             citations TEXT,
             timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             session_id TEXT,
-            processing_time_ms INTEGER
+            processing_time_ms INTEGER,
+            idempotency_key TEXT
         )
     """)
     
@@ -295,7 +296,8 @@ def init_database(db_path: Optional[str] = None) -> None:
             analysis_ids TEXT,
             content_markdown TEXT,
             visualization_paths TEXT,
-            file_path TEXT
+            file_path TEXT,
+            idempotency_key TEXT
         )
     """)
 
@@ -307,7 +309,23 @@ def init_database(db_path: Optional[str] = None) -> None:
             question TEXT NOT NULL,
             answer TEXT NOT NULL,
             source TEXT DEFAULT 'Query',
+            idempotency_key TEXT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+
+    # Create idempotency table for duplicate-safe user-triggered operations
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS idempotency_keys (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            operation TEXT NOT NULL,
+            idempotency_key TEXT NOT NULL,
+            status TEXT NOT NULL DEFAULT 'in_progress',
+            result_json TEXT,
+            error TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(operation, idempotency_key)
         )
     """)
     
@@ -343,6 +361,7 @@ def init_database(db_path: Optional[str] = None) -> None:
     # Create indexes for performance
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_datasets_type ON datasets(dataset_type)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_query_logs_timestamp ON query_logs(timestamp)")
+    cursor.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_query_logs_idempotency ON query_logs(idempotency_key) WHERE idempotency_key IS NOT NULL")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_access_logs_username ON access_logs(username)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_access_logs_timestamp ON access_logs(timestamp)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_survey_responses_dataset ON survey_responses(dataset_id)")
@@ -351,6 +370,9 @@ def init_database(db_path: Optional[str] = None) -> None:
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_quantitative_analyses_type ON quantitative_analyses(analysis_type)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_pinned_insights_username ON pinned_insights(username)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_pinned_insights_created ON pinned_insights(created_at)")
+    cursor.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_pinned_insights_idempotency ON pinned_insights(idempotency_key) WHERE idempotency_key IS NOT NULL")
+    cursor.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_reports_idempotency ON reports(idempotency_key) WHERE idempotency_key IS NOT NULL")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_idempotency_operation ON idempotency_keys(operation, status)")
     
     # Create application_logs table (centralized structured logging)
     cursor.execute("""
@@ -489,6 +511,48 @@ def execute_update(query: str, params: tuple = (), db_path: Optional[str] = None
         return cursor.lastrowid if cursor.lastrowid else cursor.rowcount
 
 
+def ensure_idempotency_schema(db_path: Optional[str] = None) -> None:
+    """Create idempotency storage on databases that have not been migrated yet."""
+    with get_db_connection(db_path) as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS idempotency_keys (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                operation TEXT NOT NULL,
+                idempotency_key TEXT NOT NULL,
+                status TEXT NOT NULL DEFAULT 'in_progress',
+                result_json TEXT,
+                error TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(operation, idempotency_key)
+            )
+        """)
+        cursor.execute(
+            "CREATE INDEX IF NOT EXISTS idx_idempotency_operation ON idempotency_keys(operation, status)"
+        )
+
+        for table, column_def in (
+            ("query_logs", "idempotency_key TEXT"),
+            ("pinned_insights", "idempotency_key TEXT"),
+            ("reports", "idempotency_key TEXT"),
+        ):
+            try:
+                cursor.execute(f"ALTER TABLE {table} ADD COLUMN {column_def}")
+            except sqlite3.OperationalError:
+                pass
+
+        for index_sql in (
+            "CREATE UNIQUE INDEX IF NOT EXISTS idx_query_logs_idempotency ON query_logs(idempotency_key) WHERE idempotency_key IS NOT NULL",
+            "CREATE UNIQUE INDEX IF NOT EXISTS idx_pinned_insights_idempotency ON pinned_insights(idempotency_key) WHERE idempotency_key IS NOT NULL",
+            "CREATE UNIQUE INDEX IF NOT EXISTS idx_reports_idempotency ON reports(idempotency_key) WHERE idempotency_key IS NOT NULL",
+        ):
+            try:
+                cursor.execute(index_sql)
+            except sqlite3.OperationalError:
+                pass
+
+
 def migrate_database(db_path: Optional[str] = None) -> None:
     """
     Apply database migrations to update schema.
@@ -561,6 +625,35 @@ def migrate_database(db_path: Optional[str] = None) -> None:
                     "CREATE INDEX IF NOT EXISTS idx_pinned_insights_created ON pinned_insights(created_at)"
                 )
                 cursor.execute("INSERT OR IGNORE INTO schema_version (version) VALUES (4)")
+
+            if current_version < 5:
+                for table, column_def in (
+                    ("query_logs", "idempotency_key TEXT"),
+                    ("pinned_insights", "idempotency_key TEXT"),
+                    ("reports", "idempotency_key TEXT"),
+                ):
+                    try:
+                        cursor.execute(f"ALTER TABLE {table} ADD COLUMN {column_def}")
+                    except Exception:
+                        pass
+                cursor.execute("""
+                    CREATE TABLE IF NOT EXISTS idempotency_keys (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        operation TEXT NOT NULL,
+                        idempotency_key TEXT NOT NULL,
+                        status TEXT NOT NULL DEFAULT 'in_progress',
+                        result_json TEXT,
+                        error TEXT,
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        UNIQUE(operation, idempotency_key)
+                    )
+                """)
+                cursor.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_query_logs_idempotency ON query_logs(idempotency_key) WHERE idempotency_key IS NOT NULL")
+                cursor.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_pinned_insights_idempotency ON pinned_insights(idempotency_key) WHERE idempotency_key IS NOT NULL")
+                cursor.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_reports_idempotency ON reports(idempotency_key) WHERE idempotency_key IS NOT NULL")
+                cursor.execute("CREATE INDEX IF NOT EXISTS idx_idempotency_operation ON idempotency_keys(operation, status)")
+                cursor.execute("INSERT OR IGNORE INTO schema_version (version) VALUES (5)")
 
             print("Database migration completed")
         else:

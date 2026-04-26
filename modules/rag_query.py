@@ -134,6 +134,7 @@ except ImportError as exc:
 
 from modules.database import execute_query, execute_update
 from modules.csv_handler import add_query_to_provenance
+from modules import idempotency
 from modules.pii_detector import redact_pii
 from config.settings import Settings
 from modules.logging_service import get_logger
@@ -388,8 +389,21 @@ class RAGQuery:
         Returns:
             Number of documents indexed (0 if already indexed)
         """
+        operation = "index_dataset"
+        dataset_rows = execute_query(
+            "SELECT file_hash, indexed_at FROM datasets WHERE id = ?",
+            (dataset_id,),
+        )
+        dataset_fingerprint = dataset_rows[0].get("file_hash") if dataset_rows else "missing"
+        idempotency_key = idempotency.make_key(operation, dataset_id, dataset_fingerprint)
+        cached = idempotency.get_completed_result(operation, idempotency_key)
+        if cached is not None:
+            return int(cached.get("doc_count", 0))
+        idempotency.start_operation(operation, idempotency_key)
+
         # Skip if already indexed
         if self._is_dataset_indexed(dataset_id):
+            idempotency.complete_operation(operation, idempotency_key, {"doc_count": 0})
             return 0
 
         # Update status to in_progress
@@ -410,6 +424,7 @@ class RAGQuery:
                     "UPDATE datasets SET indexing_status = 'failed', indexing_error = ? WHERE id = ?",
                     ("Dataset not found", dataset_id)
                 )
+                idempotency.fail_operation(operation, idempotency_key, "Dataset not found")
                 return 0
             
             dataset_type = datasets[0]['dataset_type']
@@ -493,6 +508,7 @@ class RAGQuery:
                 "UPDATE datasets SET indexing_status = 'completed', indexed_at = ?, indexing_error = NULL WHERE id = ?",
                 (datetime.now().isoformat(), dataset_id)
             )
+            idempotency.complete_operation(operation, idempotency_key, {"doc_count": len(texts)})
             
             return len(texts)
             
@@ -507,6 +523,7 @@ class RAGQuery:
                 f"Failed to index dataset {dataset_id}: {error_msg}",
                 extra={"operation": "index_dataset", "dataset_id": dataset_id, "error": error_msg}
             )
+            idempotency.fail_operation(operation, idempotency_key, error_msg)
             raise
     
     def retrieve_relevant_docs(
@@ -766,7 +783,8 @@ class RAGQuery:
         self,
         question: str,
         session_id: Optional[str] = None,
-        username: Optional[str] = None
+        username: Optional[str] = None,
+        idempotency_key: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         Answer natural language question about library data.
@@ -784,13 +802,31 @@ class RAGQuery:
             ValueError: If context is too large
         """
         start_time = datetime.now()
+        operation = "rag_query"
+        run_key = idempotency_key
+        if run_key:
+            cached = idempotency.get_completed_result(operation, run_key)
+            if cached is not None:
+                return cached
+            existing = idempotency.get_record(operation, run_key)
+            if existing and existing.get("status") == "in_progress":
+                return {
+                    "answer": "This query is already running. Wait for the current run to finish.",
+                    "confidence": 0.0,
+                    "citations": [],
+                    "suggested_questions": [],
+                    "processing_time_ms": 0,
+                    "error_type": "query_in_progress",
+                    "idempotency_key": run_key,
+                }
+            idempotency.start_operation(operation, run_key)
         logger.info("RAG query started", extra={"operation": "rag_query", "user": username or "unknown"})
         
         # Retrieve relevant documents
         docs = self.retrieve_relevant_docs(question)
         
         if not docs:
-            return {
+            result = {
                 "answer": (
                     "I couldn't find relevant data in your uploaded datasets for that question. "
                     "This could mean you still need to upload data, or the question uses terms "
@@ -806,8 +842,12 @@ class RAGQuery:
                     "Show me a summary of usage statistics",
                 ],
                 "processing_time_ms": int((datetime.now() - start_time).total_seconds() * 1000),
-                "error_type": "no_relevant_data"
+                "error_type": "no_relevant_data",
+                "idempotency_key": run_key,
             }
+            if run_key:
+                idempotency.complete_operation(operation, run_key, result)
+            return result
         
         # Build context from retrieved documents
         context = "\n\n".join([f"Source {i+1}: {doc['text']}" for i, doc in enumerate(docs)])
@@ -819,7 +859,7 @@ class RAGQuery:
         is_within_limit, estimated_tokens = self._check_context_size(context, question, history)
         
         if not is_within_limit:
-            return {
+            result = {
                 "answer": f"Your question requires too much context ({estimated_tokens} tokens, limit is {self.max_context_tokens}). Please be more specific or break it into smaller questions. Try:\n\n- Asking about a specific dataset or time period\n- Focusing on one aspect of the data\n- Clearing conversation context if you're asking a new topic",
                 "confidence": 0.0,
                 "citations": [],
@@ -829,15 +869,19 @@ class RAGQuery:
                     "Show me statistics for [specific metric]"
                 ],
                 "processing_time_ms": int((datetime.now() - start_time).total_seconds() * 1000),
-                "error_type": "context_too_large"
+                "error_type": "context_too_large",
+                "idempotency_key": run_key,
             }
+            if run_key:
+                idempotency.complete_operation(operation, run_key, result)
+            return result
         
         # Generate answer
         try:
             answer = self.generate_answer(question, context, history)
         except ConnectionError as e:
             # Handle Ollama connection failures gracefully (crashes, not running, etc.)
-            return {
+            result = {
                 "answer": f"**Cannot connect to Ollama**\n\nThe Ollama service is not responding. This usually means Ollama has crashed, is not running, or the Ollama package is unavailable.\n\n**To fix this:**\n\n1. Open a terminal\n2. Start Ollama: `ollama serve`\n3. In another terminal, verify the model is available: `ollama list`\n4. If the model '{self.model_name}' is not listed, pull it: `ollama pull {self.model_name}`\n5. Try your question again\n\n**Error details:** {str(e)}",
                 "confidence": 0.0,
                 "citations": [],
@@ -847,10 +891,14 @@ class RAGQuery:
                     "Review connection settings"
                 ],
                 "processing_time_ms": int((datetime.now() - start_time).total_seconds() * 1000),
-                "error_type": "ollama_connection_failed"
+                "error_type": "ollama_connection_failed",
+                "idempotency_key": run_key,
             }
+            if run_key:
+                idempotency.complete_operation(operation, run_key, result)
+            return result
         except TimeoutError as e:
-            return {
+            result = {
                 "answer": f"**Request Timeout**\n\nThe response generation timed out after {self.llm_timeout} seconds. Please try:\n\n- Asking a simpler question\n- Being more specific about what you want to know\n- Checking system resources (CPU/memory)\n- Clearing conversation context to reduce processing load\n\n**Error details:** {str(e)}",
                 "confidence": 0.0,
                 "citations": [],
@@ -860,10 +908,14 @@ class RAGQuery:
                     "Show me a summary of [dataset]"
                 ],
                 "processing_time_ms": int((datetime.now() - start_time).total_seconds() * 1000),
-                "error_type": "llm_timeout"
+                "error_type": "llm_timeout",
+                "idempotency_key": run_key,
             }
+            if run_key:
+                idempotency.complete_operation(operation, run_key, result)
+            return result
         except ModelNotFoundError as e:
-            return {
+            result = {
                 "answer": (
                     f"**Ollama Model Missing**\n\n"
                     f"The configured model `{self.model_name}` is not installed locally.\n\n"
@@ -882,12 +934,16 @@ class RAGQuery:
                     "Verify local model setup"
                 ],
                 "processing_time_ms": int((datetime.now() - start_time).total_seconds() * 1000),
-                "error_type": "ollama_model_missing"
+                "error_type": "ollama_model_missing",
+                "idempotency_key": run_key,
             }
+            if run_key:
+                idempotency.complete_operation(operation, run_key, result)
+            return result
         except RuntimeError as e:
             error_msg = str(e).lower()
             if any(keyword in error_msg for keyword in ["connection", "refused", "reset", "unreachable", "broken pipe", "cannot connect"]):
-                return {
+                result = {
                     "answer": f"**Cannot connect to Ollama**\n\nThe Ollama service is not responding. This usually means Ollama has crashed, is not running, or the Ollama package is unavailable.\n\n**To fix this:**\n\n1. Open a terminal\n2. Start Ollama: `ollama serve`\n3. In another terminal, verify the model is available: `ollama list`\n4. If the model '{self.model_name}' is not listed, pull it: `ollama pull {self.model_name}`\n5. Try your question again\n\n**Error details:** {str(e)}",
                     "confidence": 0.0,
                     "citations": [],
@@ -897,10 +953,14 @@ class RAGQuery:
                         "Review connection settings"
                     ],
                     "processing_time_ms": int((datetime.now() - start_time).total_seconds() * 1000),
-                    "error_type": "ollama_connection_failed"
+                    "error_type": "ollama_connection_failed",
+                    "idempotency_key": run_key,
                 }
+                if run_key:
+                    idempotency.complete_operation(operation, run_key, result)
+                return result
             # Handle other Ollama failures
-            return {
+            result = {
                 "answer": f"**Ollama Error**\n\nAn error occurred while generating the response.\n\n**Error details:** {str(e)}\n\nPlease check:\n- Ollama is running: `ollama serve`\n- Model is available: `ollama list`\n- System resources (CPU/memory)",
                 "confidence": 0.0,
                 "citations": [],
@@ -910,8 +970,12 @@ class RAGQuery:
                     "Review system resources"
                 ],
                 "processing_time_ms": int((datetime.now() - start_time).total_seconds() * 1000),
-                "error_type": "ollama_error"
+                "error_type": "ollama_error",
+                "idempotency_key": run_key,
             }
+            if run_key:
+                idempotency.complete_operation(operation, run_key, result)
+            return result
         
         # Redact PII from answer before returning (Requirement 6.5)
         answer, pii_counts = redact_pii(answer)
@@ -958,10 +1022,12 @@ class RAGQuery:
         # Log query
         execute_update(
             """
-            INSERT INTO query_logs (question, answer, confidence, citations, session_id, processing_time_ms)
-            VALUES (?, ?, ?, ?, ?, ?)
+            INSERT OR IGNORE INTO query_logs (
+                question, answer, confidence, citations, session_id, processing_time_ms, idempotency_key
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?)
             """,
-            (question, answer, confidence, str(citations), session_id, processing_time_ms)
+            (question, answer, confidence, str(citations), session_id, processing_time_ms, run_key)
         )
         
         # Update provenance for accessed datasets
@@ -969,14 +1035,18 @@ class RAGQuery:
             for dataset_id in dataset_ids:
                 add_query_to_provenance(dataset_id, question, username)
         
-        return {
+        result = {
             "answer": answer,
             "confidence": confidence,
             "citations": citations,
             "suggested_questions": suggested_questions,
             "processing_time_ms": processing_time_ms,
-            "error_type": None
+            "error_type": None,
+            "idempotency_key": run_key,
         }
+        if run_key:
+            idempotency.complete_operation(operation, run_key, result)
+        return result
     
     def _generate_suggested_questions(
         self,

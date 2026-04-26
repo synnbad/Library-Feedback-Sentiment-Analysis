@@ -11,7 +11,7 @@ from modules.rag_query import (
     RAGQuery,
     get_rag_dependency_status,
 )
-from modules import auth, csv_handler, query_queue, workflow_insights
+from modules import auth, csv_handler, idempotency, query_queue, workflow_insights
 from modules import query_intelligence
 
 
@@ -248,6 +248,12 @@ def show_query_interface_page():
         with st.chat_message("assistant"):
             with st.spinner("Thinking..."):
                 try:
+                    query_run_key = idempotency.make_key(
+                        "query_submit",
+                        st.session_state.query_session_id,
+                        prompt,
+                        len(st.session_state.messages),
+                    )
                     query_plan = query_intelligence.classify_query(prompt, dataset_profiles)
                     rewritten_prompt = query_intelligence.rewrite_query(
                         prompt,
@@ -279,6 +285,7 @@ def show_query_interface_page():
                             confidence=result["confidence"],
                             session_id=st.session_state.query_session_id,
                             processing_time_ms=0,
+                            idempotency_key=query_run_key,
                         )
                     elif not query_enabled:
                         result = {
@@ -301,7 +308,8 @@ def show_query_interface_page():
                         result = rag_engine.query(
                             question=rewritten_prompt,
                             session_id=st.session_state.query_session_id,
-                            username=st.session_state.username
+                            username=st.session_state.username,
+                            idempotency_key=query_run_key,
                         )
                     
                     # Check for error types
@@ -324,6 +332,9 @@ def show_query_interface_page():
                         st.markdown(result["answer"])
                     elif error_type == "query_not_ready":
                         st.warning("Query Search Not Ready")
+                        st.markdown(result["answer"])
+                    elif error_type == "query_in_progress":
+                        st.info("Query Already Running")
                         st.markdown(result["answer"])
                     else:
                         # Normal response

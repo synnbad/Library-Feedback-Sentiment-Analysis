@@ -62,7 +62,7 @@ class MockRAGQuery:
         results = []
         for doc_id in self.documents[:k]:
             # Parse doc_id format: "ds{dataset_id}_row{source_row_id}"
-            parts = doc_id.replace('ds', '').split('_row')
+            parts = doc_id.removeprefix('ds').split('_row', 1)
             if len(parts) == 2:
                 dataset_id = parts[0]
                 source_row_id = parts[1]

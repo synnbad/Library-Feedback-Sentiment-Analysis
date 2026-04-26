@@ -52,6 +52,7 @@ import json
 from datetime import datetime
 from typing import Optional, Dict, Any, List, Tuple
 from modules.database import execute_query, execute_update, get_db_connection
+from modules import idempotency
 from modules.logging_service import get_logger, log_operation
 
 logger = get_logger(__name__)
@@ -489,6 +490,32 @@ def store_dataset(
         ValueError: If metadata contains malicious content
     """
     # Validate and sanitize metadata
+    upload_key = idempotency.make_key("store_dataset", file_hash, dataset_name, dataset_type)
+    cached = idempotency.get_completed_result("store_dataset", upload_key)
+    if cached is not None and cached.get("dataset_id"):
+        cached_dataset_id = int(cached["dataset_id"])
+        cached_rows = execute_query("SELECT id FROM datasets WHERE id = ?", (cached_dataset_id,))
+        if cached_rows:
+            return cached_dataset_id
+
+    existing_rows = execute_query(
+        """
+        SELECT id FROM datasets
+        WHERE file_hash = ? AND name = ? AND dataset_type = ?
+        ORDER BY id DESC
+        LIMIT 1
+        """,
+        (file_hash, dataset_name, dataset_type),
+    )
+    if existing_rows:
+        dataset_id = int(existing_rows[0]["id"])
+        idempotency.start_operation("store_dataset", upload_key)
+        idempotency.complete_operation("store_dataset", upload_key, {"dataset_id": dataset_id})
+        return dataset_id
+
+    idempotency.start_operation("store_dataset", upload_key)
+
+    # Validate and sanitize metadata
     if metadata:
         try:
             metadata = validate_and_sanitize_metadata(metadata)
@@ -497,6 +524,7 @@ def store_dataset(
                 f"Metadata validation failed: {str(e)}",
                 extra={"operation": "store_dataset", "error": str(e)}
             )
+            idempotency.fail_operation("store_dataset", upload_key, str(e))
             raise ValueError(f"Invalid metadata: {str(e)}")
     
     # Prepare metadata
@@ -556,6 +584,7 @@ def store_dataset(
         (json.dumps(capabilities), dataset_id)
     )
 
+    idempotency.complete_operation("store_dataset", upload_key, {"dataset_id": dataset_id})
     return dataset_id
 
 
