@@ -1,0 +1,44 @@
+# Documentation Index
+
+This directory contains project documentation for users, developers, reviewers, and maintainers.
+
+## Primary Documentation
+
+- [Architecture](ARCHITECTURE.md): system design, application layers, data flow, and operational notes.
+- [User guide](USER_GUIDE.md): end-user workflows for upload, analysis, querying, reports, and governance.
+- [Testing guide](TESTING.md): regression commands, test organization, and quality checks.
+- [Changelog](CHANGELOG.md): notable project changes.
+- [Module interfaces](MODULE_INTERFACES.md): module-level API and responsibility overview.
+- [Dependency strategy](DEPENDENCY_STRATEGY.md): local-first dependency and model-loading guidance.
+
+## Data Documentation
+
+- [Accepted data types](ACCEPTED_DATA_TYPES.md)
+- [Data format guide](DATA_FORMAT_GUIDE.md)
+- [Data requirements quick reference](DATA_REQUIREMENTS_QUICK_REFERENCE.md)
+- [Data cleaning capabilities](DATA_CLEANING_CAPABILITIES.md)
+
+## Feature Documentation
+
+- [Metadata autofill feature](METADATA_AUTOFILL_FEATURE.md)
+- [Metadata autofill user guide](METADATA_AUTOFILL_USER_GUIDE.md)
+- [NLP quick reference](NLP_QUICK_REFERENCE.md)
+- [Quantitative analysis proposal](QUANTITATIVE_ANALYSIS_PROPOSAL.md)
+
+## Project Reports and Historical Notes
+
+- [Project context](PROJECT_CONTEXT.md)
+- [Implementation summary](IMPLEMENTATION_SUMMARY.md)
+- [Final implementation report](FINAL_IMPLEMENTATION_REPORT.md)
+- [Testing summary](TESTING_SUMMARY.md)
+- [Course project summary](COURSE_PROJECT_SUMMARY.md)
+- [AMIA project report](AMIA_PROJECT_REPORT_COMPLETE.md)
+- [Refactor audit summary](REFACTOR_AUDIT_SUMMARY.md)
+- [Refactor complete summary](REFACTOR_COMPLETE_SUMMARY.md)
+- [Merge summary archive](archive/MERGE_SUMMARY.md)
+- [Project PDF](reports/Library_Assessment_Project.pdf)
+
+## Reference
+
+- [Reference architecture notes](reference/architecture.md)
+- [MVP requirements and design specs](specs/ferpa-compliant-rag-dss/requirements.md)

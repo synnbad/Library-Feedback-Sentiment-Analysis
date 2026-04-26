@@ -1211,7 +1211,7 @@ A: Yes. Upload each source as a separate dataset. The Query Interface can search
 
 ### Sample Data
 
-The `test_data/` folder contains sample CSV files you can use to learn the system:
+The `../test_data/` folder contains sample CSV files you can use to learn the system:
 - `sample_survey_responses.csv`: Example survey data
 - `sample_usage_statistics.csv`: Example usage metrics
 - `sample_circulation_data.csv`: Example circulation data
@@ -1220,9 +1220,9 @@ Try uploading these files to familiarize yourself with the system before using y
 
 ### Documentation Files
 
-- `README.md`: Technical setup and developer information
-- `ARCHITECTURE.md`: System design and architecture (for developers)
-- `test_data/README.md`: Detailed information about sample data
+- `../README.md`: Technical setup and developer information
+- `ARCHITECTURE.md`: System design and architecture for developers
+- `../test_data/README.md`: Detailed information about sample data
 
 ### Getting Help
 

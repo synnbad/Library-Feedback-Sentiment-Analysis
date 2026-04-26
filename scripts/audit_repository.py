@@ -93,11 +93,11 @@ class RepositoryAuditor:
         # Canonical documentation
         if path_str == "README.md":
             return ("canonical", "Main project documentation (needs update)")
-        if path_str == "ARCHITECTURE.md":
+        if path_str == "docs/ARCHITECTURE.md":
             return ("canonical", "Architecture documentation (needs update)")
-        if path_str == "USER_GUIDE.md":
+        if path_str == "docs/USER_GUIDE.md":
             return ("canonical", "User guide")
-        if path_str == "TESTING.md":
+        if path_str == "docs/TESTING.md":
             return ("canonical", "Testing documentation")
         if path_str.startswith("docs/") and any(x in path_str for x in [
             "AMIA", "COURSE", "DATA_", "METADATA", "MODULE", "PROJECT", "QUANTITATIVE"
@@ -146,8 +146,8 @@ class RepositoryAuditor:
             
         try:
             for item in directory.iterdir():
-                # Skip hidden directories except .kiro
-                if item.name.startswith('.') and item.name not in ['.kiro', '.gitignore', '.env.example', '.python-version']:
+                # Skip hidden directories except tracked root config files.
+                if item.name.startswith('.') and item.name not in ['.gitignore', '.env.example', '.python-version']:
                     continue
                     
                 # Skip build artifacts and caches

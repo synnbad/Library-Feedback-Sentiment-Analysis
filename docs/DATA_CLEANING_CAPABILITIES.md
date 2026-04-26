@@ -283,4 +283,4 @@ If you need to clean data before upload, consider:
 
 ---
 
-**Questions?** Review the data quality checklist above or consult the USER_GUIDE.md for upload best practices.
+**Questions?** Review the data quality checklist above or consult `USER_GUIDE.md` for upload best practices.
