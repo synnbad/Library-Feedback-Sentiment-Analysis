@@ -1,20 +1,20 @@
 # Library Assessment Decision Support System
 
-Local-first Streamlit application for library assessment workflows. The app helps library teams upload assessment data, validate CSV files, run qualitative and quantitative analysis, ask cited natural-language questions, and generate reports without sending core data to a hosted AI service.
+Local-first Streamlit application for small-team library assessment workflows. The app helps library teams import assessment data, validate and describe datasets, run qualitative and quantitative analysis, ask cited natural-language questions, and produce leadership-ready reports without sending core data to a hosted AI service.
 
 ## Key Capabilities
 
-- Navigate the app through workflow sections: Home, Data, Analyze, Ask, Reports, Governance, and Admin.
+- Navigate through workflow sections: Home, Data, Analyze, Ask, Reports, Governance, and Admin.
 - Import CSV, TSV, TXT, Excel, and JSON assessment datasets.
 - Normalize survey, usage, circulation, e-resource, spaces, instruction, reference, events, collection, and benchmark data into analysis-ready tables.
 - Validate, profile, and generate data dictionaries before analysis.
 - Store local data in SQLite with provenance metadata.
-- Index uploaded records with ChromaDB for retrieval-augmented querying.
+- Index uploaded records with ChromaDB from Data > Indexing and show readiness for Ask.
 - Use Ollama for local answer generation.
 - Suggest proactive questions based on dataset shape and quality.
-- Run sentiment, theme, trend, comparison, and distribution analysis.
+- Run text feedback, sentiment, theme, trend, comparison, distribution, and chart workflows.
 - Plan assessment projects, peer benchmarks, dashboard user stories, KPI blueprints, modeling-readiness checks, and staff training outlines.
-- Pin query insights into report generation.
+- Promote query and analysis insights into report work.
 - Export reports as Markdown or PDF.
 - Detect and redact PII in retrieved context and generated outputs.
 - Review logs, errors, performance signals, and audit activity.
@@ -25,9 +25,9 @@ The Streamlit UI is organized around assessment work rather than implementation
 modules:
 
 - **Home**: operational dashboard, system status, attention queue, and recommended next steps.
-- **Data**: import, dataset management, PII review, metadata readiness, and indexing status.
+- **Data**: import, dataset management, PII review, metadata readiness, and indexing controls.
 - **Analyze**: text feedback, metrics and trends, comparisons, charts, and modeling readiness.
-- **Ask**: natural-language question workbench over active datasets.
+- **Ask**: natural-language question workbench over active indexed datasets.
 - **Reports**: leadership reports, projects, evidence handoff, dashboard planning, and methods materials.
 - **Governance**: FAIR/CARE readiness and responsible-use reference material.
 - **Admin**: admin-only users, backups, model settings, PII rules, audit logs, and system health.
@@ -35,6 +35,16 @@ modules:
 See [Streamlit UI design record](docs/STREAMLIT_UI_DESIGN_RECORD.md) and
 [local-first small-team design record](docs/LOCAL_FIRST_SMALL_TEAM_DESIGN_RECORD.md)
 for the current product decisions and implementation roadmap.
+
+## Roles
+
+The app uses named local accounts with a lightweight role model:
+
+- **Admin**: sees every workflow, including Admin controls for users, system health, model settings, PII rules, logs, and future backup/restore workflows.
+- **Analyst**: works in Data, Analyze, Ask, Reports, and Governance.
+- **Viewer**: gets a simplified experience focused on Home, finalized Reports, and Governance reference.
+
+`scripts/init_app.py` creates the default `admin` account with the admin role.
 
 ## Repository Structure
 
@@ -88,6 +98,10 @@ password: admin123
 
 Change the default password before using real or sensitive data.
 
+After importing data, open **Data > Indexing** and confirm each dataset is marked
+**Ready** before using **Ask** for source-row retrieval. The Indexing page also
+syncs stale local status from ChromaDB when documents already exist.
+
 ## Configuration
 
 Copy `.env.example` to `.env` when you need local overrides.
@@ -132,9 +146,9 @@ Canonical table shapes are still supported and remain the safest path for direct
 
 Sample CSV files are available in `test_data/`.
 
-## Assessment Workspace
+## Projects And Reporting Workflows
 
-The Assessment Workspace adds workflow support around the analysis engine:
+The Reports workflow includes project and handoff support around the analysis engine:
 
 - Projects: goals, research questions, stakeholders, methods, attached datasets, findings, and recommendations.
 - Benchmarking: peer comparison summaries, rank, percentile, and top-performer views.
@@ -157,10 +171,16 @@ ruff check .
 python -m compileall modules ui tests
 ```
 
-Current verified baseline:
+Historical full-suite baseline:
 
 ```text
 246 passed
+```
+
+Recent targeted validation for the workflow-shell update:
+
+```text
+74 passed
 ```
 
 ## Presentation
@@ -180,6 +200,8 @@ docs/presentations/nlp_final_project_library_assessment_assistant.pptx
 - [Data format guide](docs/DATA_FORMAT_GUIDE.md)
 - [Dependency strategy](docs/DEPENDENCY_STRATEGY.md)
 - [Module interfaces](docs/MODULE_INTERFACES.md)
+- [Local-first small-team design record](docs/LOCAL_FIRST_SMALL_TEAM_DESIGN_RECORD.md)
+- [Streamlit UI design record](docs/STREAMLIT_UI_DESIGN_RECORD.md)
 - [Changelog](docs/CHANGELOG.md)
 
 ## Runtime Notes
