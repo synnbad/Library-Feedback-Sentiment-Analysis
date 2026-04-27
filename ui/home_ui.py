@@ -77,7 +77,7 @@ def _display_attention_queue(system_status):
     for dataset in datasets:
         if any(not dataset.get(field) for field in ("title", "description", "source")):
             metadata_gap_count += 1
-        if (dataset.get("indexing_status") or "pending") != "indexed":
+        if not _is_indexed(dataset):
             unindexed_count += 1
 
     if metadata_gap_count:
@@ -93,6 +93,11 @@ def _display_attention_queue(system_status):
 
     for category, issue, action in items:
         st.warning(f"**{category}:** {issue}. {action}")
+
+
+def _is_indexed(dataset):
+    """Return True for all internal states that mean ready for Ask."""
+    return (dataset.get("indexing_status") or "").lower() in {"completed", "indexed", "ready"}
 
 
 def display_system_status():
@@ -188,7 +193,7 @@ def _display_guided_next_steps():
         for idx, question in enumerate(_dedupe(questions)[:5]):
             if st.button(question, key=f"home_question_{idx}", use_container_width=True):
                 query_queue.queue_question(st.session_state, question)
-                st.success("Queued. Open Query Interface to review, edit, and run it.")
+                st.success("Queued. Open Ask to review, edit, and run it.")
 
 
 def _dedupe(items):

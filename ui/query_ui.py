@@ -17,7 +17,7 @@ from modules import query_intelligence
 
 def show_query_interface_page():
     """Display query interface page with chat interface and RAG functionality."""
-    st.title("Query Interface")
+    st.title("Ask")
     st.markdown("Ask questions about your library data in natural language.")
     
     # Initialize RAG engine in session state
@@ -78,7 +78,7 @@ def show_query_interface_page():
             st.warning(f"Could not check indexing status for dataset '{ds['name']}': {e}")
 
     if not datasets:
-        st.info("Upload a dataset in the Data Upload page before using the query interface.")
+        st.info("Import a dataset in Data > Import before using Ask.")
     elif unindexed_datasets:
         st.warning(
             f"{len(unindexed_datasets)} dataset(s) still need indexing before they can be searched."
@@ -204,7 +204,7 @@ def show_query_interface_page():
                         message["content"],
                         username=st.session_state.username,
                     )
-                    st.success("Pinned for Report Generation.")
+                    st.success("Pinned for Reports.")
             
             # Display citations if present
             if message["role"] == "assistant" and "citations" in message:
@@ -447,11 +447,11 @@ def show_query_interface_page():
     
     # Help section
     st.markdown("---")
-    with st.expander("How to use the Query Interface", expanded=False):
+    with st.expander("How to use Ask", expanded=False):
         st.markdown("""
         ### Getting Started
         
-        1. **Upload Data**: First, upload your CSV files in the Data Upload section
+        1. **Upload Data**: First, import files in Data > Import
         2. **Index Data**: Use the "Index Available Datasets" button on this page before searching
         3. **Ask Questions**: Type natural language questions about your data
         4. **Review Answers**: Answers include citations showing which data sources were used

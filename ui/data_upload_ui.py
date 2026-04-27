@@ -433,7 +433,7 @@ def _display_profile_guidance(profile, key_prefix: str, compact: bool = False):
         for idx, question in enumerate(suggestions):
             if st.button(question, key=f"{key_prefix}_question_{idx}", use_container_width=True):
                 query_queue.queue_question(st.session_state, question)
-                st.success("Queued. Open Query Interface to review, edit, and run it.")
+                st.success("Queued. Open Ask to review, edit, and run it.")
 
 
 def _display_data_dictionary(dictionary, expanded: bool = True):

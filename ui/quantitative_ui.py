@@ -14,14 +14,14 @@ from ui import smart_guidance
 
 def show_quantitative_analysis_page():
     """Display quantitative analysis page with statistical analysis and LLM interpretations."""
-    st.title("Quantitative Analysis")
+    st.title("Metrics & Trends")
     st.markdown("Perform advanced statistical analysis with AI-powered interpretations.")
     
     # Get available datasets
     datasets = csv_handler.get_datasets()
     
     if not datasets:
-        st.info("No datasets available. Please upload data in the Data Upload section.")
+        st.info("No datasets available. Import data in Data > Import.")
         return
 
     # Classify and label datasets

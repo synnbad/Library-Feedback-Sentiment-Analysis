@@ -13,12 +13,12 @@ from ui import smart_guidance
 
 def show_visualizations_page():
     """Display visualizations page with chart generation and export."""
-    st.title("Visualizations")
+    st.title("Charts")
     st.markdown("Generate charts to visualize trends and patterns in your library data.")
 
     datasets = csv_handler.get_datasets()
     if not datasets:
-        st.info("No datasets available. Please upload data in the Data Upload section.")
+        st.info("No datasets available. Import data in Data > Import.")
         return
 
     # Smart dataset selector
@@ -245,7 +245,7 @@ def show_visualizations_page():
     
     # Help section
     st.markdown("---")
-    with st.expander("How to use Visualizations", expanded=False):
+    with st.expander("How to use Charts", expanded=False):
         st.markdown("""
         ### Getting Started
         

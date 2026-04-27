@@ -12,12 +12,12 @@ from ui import smart_guidance
 
 def show_report_generation_page():
     """Display report generation page with report creation and export."""
-    st.title("Report Generation")
+    st.title("Leadership Reports")
     st.markdown("Generate comprehensive reports with statistical summaries and narrative text.")
 
     datasets = csv_handler.get_datasets()
     if not datasets:
-        st.info("No datasets available. Please upload data in the Data Upload section.")
+        st.info("No datasets available. Import data in Data > Import.")
         return
 
     # Smart dataset labels with capability hints
@@ -393,7 +393,7 @@ def _display_report_preview(report):
 def _display_help_section():
     """Display help information for report generation."""
     st.markdown("---")
-    with st.expander("How to use Report Generation", expanded=False):
+    with st.expander("How to use Leadership Reports", expanded=False):
         st.markdown("""
         ### Getting Started
         

@@ -6,7 +6,12 @@ import pandas as pd
 import streamlit as st
 
 from modules import csv_handler
-from modules.rag_query import DependencyUnavailableError, RAGQuery, get_rag_dependency_status
+from modules.rag_query import (
+    DependencyUnavailableError,
+    RAGQuery,
+    get_rag_dependency_status,
+    sync_indexing_status_from_chroma,
+)
 from ui import context_ui, data_upload_ui
 
 
@@ -74,6 +79,13 @@ def _show_indexing_tab() -> None:
     if not datasets:
         st.info("No active datasets yet. Import a dataset to create an indexing job.")
         return
+    try:
+        synced_count = sync_indexing_status_from_chroma([dataset["id"] for dataset in datasets])
+        if synced_count:
+            datasets = csv_handler.get_datasets()
+            st.caption(f"Synced indexing status for {synced_count} dataset(s) already present in ChromaDB.")
+    except Exception:
+        pass
 
     ready_count = sum(1 for dataset in datasets if _is_indexed(dataset))
     failed_count = sum(1 for dataset in datasets if (dataset.get("indexing_status") or "") == "failed")
@@ -145,7 +157,10 @@ def _show_indexing_tab() -> None:
             dataset_name = next(dataset["name"] for dataset in pending if dataset["id"] == dataset_id)
             try:
                 doc_count = rag_engine.index_dataset(dataset_id)
-                indexed.append(f"{dataset_name} ({doc_count} new docs)")
+                if doc_count:
+                    indexed.append(f"{dataset_name} ({doc_count} new docs)")
+                else:
+                    indexed.append(f"{dataset_name} (already indexed)")
             except Exception as exc:
                 failed.append(f"{dataset_name}: {exc}")
             progress.progress(index / len(selected_ids))

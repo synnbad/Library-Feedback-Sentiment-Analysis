@@ -210,6 +210,54 @@ def _require_rag_dependencies(include_ollama: bool = False, purpose: str = "RAG 
         raise DependencyUnavailableError(missing_dependencies, purpose)
 
 
+def sync_indexing_status_from_chroma(dataset_ids: Optional[List[int]] = None) -> int:
+    """
+    Mark datasets completed in SQLite when their documents already exist in ChromaDB.
+
+    This avoids stale UI states where retrieval is ready but the datasets table still
+    says indexing is pending.
+    """
+    if getattr(chromadb, "PersistentClient", None) is None:
+        return 0
+
+    if dataset_ids is None:
+        rows = execute_query("SELECT id FROM datasets")
+        dataset_ids = [int(row["id"]) for row in rows]
+
+    if not dataset_ids:
+        return 0
+
+    client = chromadb.PersistentClient(
+        path=Settings.CHROMA_DB_PATH,
+        settings=ChromaSettings(anonymized_telemetry=False),
+    )
+    collection = client.get_or_create_collection(
+        name="assessment_documents",
+        metadata={"description": "Library assessment data for RAG"},
+    )
+
+    synced = 0
+    for dataset_id in dataset_ids:
+        try:
+            results = collection.get(where={"dataset_id": str(dataset_id)}, limit=1)
+        except Exception:
+            continue
+        if results.get("ids"):
+            execute_update(
+                """
+                UPDATE datasets
+                SET indexing_status = 'completed',
+                    indexed_at = COALESCE(indexed_at, ?),
+                    indexing_error = NULL
+                WHERE id = ?
+                  AND COALESCE(indexing_status, 'pending') NOT IN ('completed', 'indexed', 'ready')
+                """,
+                (datetime.now().isoformat(), dataset_id),
+            )
+            synced += 1
+    return synced
+
+
 class TimeoutError(Exception):
     """Exception raised when an operation times out."""
     pass
@@ -398,11 +446,14 @@ class RAGQuery:
         idempotency_key = idempotency.make_key(operation, dataset_id, dataset_fingerprint)
         cached = idempotency.get_completed_result(operation, idempotency_key)
         if cached is not None:
+            if self._is_dataset_indexed(dataset_id):
+                self._mark_dataset_indexed(dataset_id)
             return int(cached.get("doc_count", 0))
         idempotency.start_operation(operation, idempotency_key)
 
         # Skip if already indexed
         if self._is_dataset_indexed(dataset_id):
+            self._mark_dataset_indexed(dataset_id)
             idempotency.complete_operation(operation, idempotency_key, {"doc_count": 0})
             return 0
 
@@ -525,6 +576,19 @@ class RAGQuery:
             )
             idempotency.fail_operation(operation, idempotency_key, error_msg)
             raise
+
+    def _mark_dataset_indexed(self, dataset_id: int) -> None:
+        """Synchronize SQLite status when ChromaDB already contains dataset docs."""
+        execute_update(
+            """
+            UPDATE datasets
+            SET indexing_status = 'completed',
+                indexed_at = COALESCE(indexed_at, ?),
+                indexing_error = NULL
+            WHERE id = ?
+            """,
+            (datetime.now().isoformat(), dataset_id),
+        )
     
     def retrieve_relevant_docs(
         self,

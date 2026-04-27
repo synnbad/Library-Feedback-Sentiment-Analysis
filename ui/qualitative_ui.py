@@ -14,14 +14,14 @@ from ui import smart_guidance
 
 def show_qualitative_analysis_page():
     """Display qualitative analysis page with sentiment and theme analysis."""
-    st.title("Qualitative Analysis")
+    st.title("Text Feedback")
     st.markdown("Analyze open-ended survey responses for sentiment and themes.")
     
     # Get available datasets
     datasets = csv_handler.get_datasets()
 
     if not datasets:
-        st.info("No datasets available. Please upload data in the Data Upload section.")
+        st.info("No datasets available. Import data in Data > Import.")
         return
 
     # Classify datasets and build selector with hints
@@ -292,7 +292,7 @@ def _display_export_section(results, sentiment_chart, theme_chart):
 def _display_help_section():
     """Display help information for qualitative analysis."""
     st.markdown("---")
-    with st.expander("How to use Qualitative Analysis", expanded=False):
+    with st.expander("How to use Text Feedback", expanded=False):
         st.markdown("""
         ### Getting Started
         

@@ -30,10 +30,10 @@ def display_profile_summary(profile, compact: bool = True):
 
 
 def queue_question_button(question: str, key: str, use_container_width: bool = True):
-    """Button that stores a suggested question for the Query Interface."""
+    """Button that stores a suggested question for Ask."""
     if st.button(question, key=key, use_container_width=use_container_width):
         query_queue.queue_question(st.session_state, question)
-        st.success("Queued. Open Query Interface to review, edit, and run it.")
+        st.success("Queued. Open Ask to review, edit, and run it.")
 
 
 def display_question_buttons(questions, key_prefix: str, limit: int = 5):
