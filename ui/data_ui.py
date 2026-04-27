@@ -75,11 +75,25 @@ def _show_indexing_tab() -> None:
         st.info("No active datasets yet. Import a dataset to create an indexing job.")
         return
 
+    ready_count = sum(1 for dataset in datasets if _is_indexed(dataset))
+    failed_count = sum(1 for dataset in datasets if (dataset.get("indexing_status") or "") == "failed")
+    pending_count = len(datasets) - ready_count - failed_count
+
+    summary_cols = st.columns(3)
+    summary_cols[0].metric("Ready for Ask", ready_count)
+    summary_cols[1].metric("Needs Indexing", pending_count)
+    summary_cols[2].metric("Failed", failed_count)
+
+    if ready_count == len(datasets):
+        st.success("All datasets are indexed and ready for Ask.")
+    elif ready_count:
+        st.info(f"{ready_count} dataset(s) are ready for Ask. Index the remaining datasets below.")
+
     rows = [
         {
             "id": dataset["id"],
             "name": dataset["name"],
-            "status": dataset.get("indexing_status") or "pending",
+            "status": _indexing_label(dataset),
             "indexed_at": dataset.get("indexed_at") or "",
             "error": dataset.get("indexing_error") or "",
         }
@@ -90,10 +104,9 @@ def _show_indexing_tab() -> None:
     pending = [
         dataset
         for dataset in datasets
-        if (dataset.get("indexing_status") or "pending") not in {"completed", "indexed"}
+        if not _is_indexed(dataset)
     ]
     if not pending:
-        st.success("All datasets are indexed and ready for Ask.")
         return
 
     st.markdown("#### Index Pending Datasets")
@@ -138,8 +151,34 @@ def _show_indexing_tab() -> None:
             progress.progress(index / len(selected_ids))
 
         if indexed:
-            st.success("Indexed: " + ", ".join(indexed))
+            st.session_state.indexing_last_result = "Indexed: " + ", ".join(indexed)
         if failed:
+            st.session_state.indexing_last_error = "\n".join(failed)
             for failure in failed:
                 st.error(failure)
         st.rerun()
+
+    if st.session_state.get("indexing_last_result"):
+        st.success(st.session_state.pop("indexing_last_result"))
+    if st.session_state.get("indexing_last_error"):
+        for failure in st.session_state.pop("indexing_last_error").splitlines():
+            st.error(failure)
+
+
+def _is_indexed(dataset: dict) -> bool:
+    """Return True when a dataset has completed indexing."""
+    return (dataset.get("indexing_status") or "").lower() in {"completed", "indexed", "ready"}
+
+
+def _indexing_label(dataset: dict) -> str:
+    """Map internal indexing states to user-facing labels."""
+    status = (dataset.get("indexing_status") or "pending").lower()
+    if status in {"completed", "indexed", "ready"}:
+        return "Ready"
+    if status == "in_progress":
+        return "Indexing"
+    if status == "failed":
+        return "Failed"
+    if status == "skipped":
+        return "Skipped"
+    return "Needs indexing"
