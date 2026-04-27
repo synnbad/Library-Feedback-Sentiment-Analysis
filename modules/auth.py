@@ -267,13 +267,17 @@ def verify_password(password: str, password_hash: str) -> bool:
         return False
 
 
-def create_user(username: str, password: str) -> bool:
+VALID_ROLES = {"admin", "analyst", "viewer"}
+
+
+def create_user(username: str, password: str, role: str = "analyst") -> bool:
     """
     Create a new user account.
     
     Args:
         username: Username (must be unique)
         password: Plain text password (will be hashed)
+        role: Application role: admin, analyst, or viewer
         
     Returns:
         True if user created successfully, False if username already exists
@@ -287,12 +291,21 @@ def create_user(username: str, password: str) -> bool:
     if existing:
         return False
     
+    if role not in VALID_ROLES:
+        role = "analyst"
+
     # Hash password and create user
     password_hash = hash_password(password)
-    execute_update(
-        "INSERT INTO users (username, password_hash) VALUES (?, ?)",
-        (username, password_hash)
-    )
+    try:
+        execute_update(
+            "INSERT INTO users (username, password_hash, role) VALUES (?, ?, ?)",
+            (username, password_hash, role)
+        )
+    except Exception:
+        execute_update(
+            "INSERT INTO users (username, password_hash) VALUES (?, ?)",
+            (username, password_hash)
+        )
     
     # Log user creation
     log_access(
@@ -519,6 +532,68 @@ def delete_user(username: str) -> bool:
     return True
 
 
+def get_user_role(username: str) -> str:
+    """
+    Return a user's application role.
+
+    Existing databases may not have the role column yet. In that case, the built-in
+    admin account is treated as admin and all other users default to analyst.
+    """
+    if not username:
+        return "viewer"
+
+    try:
+        users = execute_query(
+            "SELECT role FROM users WHERE username = ?",
+            (username,)
+        )
+        if users and users[0].get("role") in VALID_ROLES:
+            return users[0]["role"]
+    except Exception:
+        pass
+
+    return "admin" if username == "admin" else "analyst"
+
+
+def is_admin(username: str) -> bool:
+    """Return True when the user has admin privileges."""
+    return get_user_role(username) == "admin"
+
+
+def set_user_role(username: str, role: str) -> bool:
+    """
+    Update a user's role.
+
+    Returns False when the role is invalid or the user does not exist.
+    """
+    if role not in VALID_ROLES:
+        return False
+
+    users = execute_query(
+        "SELECT id FROM users WHERE username = ?",
+        (username,)
+    )
+    if not users:
+        return False
+
+    try:
+        execute_update(
+            "UPDATE users SET role = ? WHERE username = ?",
+            (role, username)
+        )
+    except Exception:
+        return False
+
+    log_access(
+        username="system",
+        action="set_user_role",
+        resource_type="user",
+        resource_id=username,
+        details=f"Updated user role to {role}"
+    )
+    return True
+
+
 def list_users() -> list[Dict[str, Any]]:
     """
     List all user accounts.
@@ -526,9 +601,17 @@ def list_users() -> list[Dict[str, Any]]:
     Returns:
         List of users (without password hashes)
     """
-    return execute_query(
-        "SELECT id, username, created_date FROM users ORDER BY username"
-    )
+    try:
+        return execute_query(
+            "SELECT id, username, role, created_date FROM users ORDER BY username"
+        )
+    except Exception:
+        users = execute_query(
+            "SELECT id, username, created_date FROM users ORDER BY username"
+        )
+        for user in users:
+            user["role"] = "admin" if user["username"] == "admin" else "analyst"
+        return users
 
 
 # Session management helpers for Streamlit
@@ -803,4 +886,3 @@ if __name__ == "__main__":
     
     is_valid, error_msg = validate_session_id(session_id1, "other_user")
     print(f"Valid for other_user: {is_valid}, Error: {error_msg}")
-

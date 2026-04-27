@@ -21,7 +21,7 @@ def main():
     username = "admin"
     password = "admin123"
     
-    if create_user(username, password):
+    if create_user(username, password, role="admin"):
         print(f"User '{username}' created successfully")
         print(f"  Username: {username}")
         print("  Password: [REDACTED]")

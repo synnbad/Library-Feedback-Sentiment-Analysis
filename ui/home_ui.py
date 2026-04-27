@@ -14,42 +14,14 @@ import streamlit as st
 from config.settings import Settings
 from modules import csv_handler, query_intelligence, query_queue
 from modules.database import execute_query
+from ui import context_ui
 
 
 def show_home_page():
-    """Display home page with system overview."""
+    """Display operational dashboard with system overview and next actions."""
     st.title("Library Assessment Assistant")
-    st.markdown("### AI-Powered Decision Support System")
-    
-    st.markdown("""
-    Welcome to the Library Assessment Assistant! This system helps you analyze library data
-    using AI-powered natural language processing while maintaining FERPA compliance through
-    local-only processing.
-    
-    #### Key Features
-    
-    - **Data Upload**: Upload CSV files with survey responses, usage statistics, and circulation data
-    - **Query Interface**: Ask questions in plain English and get answers with citations
-    - **Qualitative Analysis**: Analyze open-ended responses for sentiment and themes
-    - **Visualizations**: Generate charts to visualize trends and patterns
-    - **Report Generation**: Create comprehensive reports with statistics and narratives
-    - **Data Governance**: Follow FAIR and CARE principles for responsible data management
-    
-    #### Privacy & Compliance
-    
-    All data processing happens locally on your machine. No data is sent to external services,
-    ensuring FERPA compliance and protecting student privacy.
-    
-    #### Getting Started
-    
-    1. **Upload Data**: Start by uploading your CSV files in the Data Upload section
-    2. **Ask Questions**: Use the Query Interface to explore your data with natural language
-    3. **Analyze**: Run qualitative analysis on open-ended responses
-    4. **Visualize**: Create charts to present your findings
-    5. **Report**: Generate comprehensive reports for stakeholders
-    
-    Use the navigation menu on the left to access different features.
-    """)
+    st.caption("Operational dashboard for local-first library assessment work.")
+    context_ui.show_context_strip()
     
     # System status
     st.markdown("---")
@@ -87,7 +59,40 @@ def show_home_page():
         st.metric("Users", quick_stats["users"])
 
     st.markdown("---")
+    _display_attention_queue(system_status)
     _display_guided_next_steps()
+
+
+def _display_attention_queue(system_status):
+    """Show concise operational items that need attention."""
+    st.markdown("### Needs Attention")
+    datasets = csv_handler.get_datasets()
+    items = []
+
+    if not datasets:
+        items.append(("Data", "No active datasets yet", "Open Data > Import and add an assessment file."))
+
+    metadata_gap_count = 0
+    unindexed_count = 0
+    for dataset in datasets:
+        if any(not dataset.get(field) for field in ("title", "description", "source")):
+            metadata_gap_count += 1
+        if (dataset.get("indexing_status") or "pending") != "indexed":
+            unindexed_count += 1
+
+    if metadata_gap_count:
+        items.append(("Metadata", f"{metadata_gap_count} dataset(s) need core metadata", "Open Data > Metadata."))
+    if unindexed_count:
+        items.append(("Indexing", f"{unindexed_count} dataset(s) are not indexed", "Open Data > Indexing."))
+    if system_status["ollama"] != "Connected":
+        items.append(("Inference", f"Ollama is {system_status['ollama'].lower()}", "LLM drafting and RAG answers are paused."))
+
+    if not items:
+        st.success("No immediate operational issues detected.")
+        return
+
+    for category, issue, action in items:
+        st.warning(f"**{category}:** {issue}. {action}")
 
 
 def display_system_status():

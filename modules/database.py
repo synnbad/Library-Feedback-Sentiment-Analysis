@@ -95,7 +95,7 @@ from config.settings import Settings
 
 
 # Database schema version for migrations
-SCHEMA_VERSION = 6
+SCHEMA_VERSION = 7
 
 # Retry configuration for database locks
 MAX_RETRIES = 5
@@ -254,6 +254,7 @@ def init_database(db_path: Optional[str] = None) -> None:
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             username TEXT UNIQUE NOT NULL,
             password_hash TEXT NOT NULL,
+            role TEXT DEFAULT 'analyst',
             created_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     """)
@@ -743,6 +744,14 @@ def migrate_database(db_path: Optional[str] = None) -> None:
                 cursor.execute("CREATE INDEX IF NOT EXISTS idx_assessment_projects_status ON assessment_projects(status)")
                 cursor.execute("CREATE INDEX IF NOT EXISTS idx_dashboard_blueprints_status ON dashboard_blueprints(status)")
                 cursor.execute("INSERT OR IGNORE INTO schema_version (version) VALUES (6)")
+
+            if current_version < 7:
+                try:
+                    cursor.execute("ALTER TABLE users ADD COLUMN role TEXT DEFAULT 'analyst'")
+                except Exception:
+                    pass
+                cursor.execute("UPDATE users SET role = 'admin' WHERE username = 'admin'")
+                cursor.execute("INSERT OR IGNORE INTO schema_version (version) VALUES (7)")
 
             print("Database migration completed")
         else:

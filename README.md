@@ -4,6 +4,7 @@ Local-first Streamlit application for library assessment workflows. The app help
 
 ## Key Capabilities
 
+- Navigate the app through workflow sections: Home, Data, Analyze, Ask, Reports, Governance, and Admin.
 - Import CSV, TSV, TXT, Excel, and JSON assessment datasets.
 - Normalize survey, usage, circulation, e-resource, spaces, instruction, reference, events, collection, and benchmark data into analysis-ready tables.
 - Validate, profile, and generate data dictionaries before analysis.
@@ -17,6 +18,23 @@ Local-first Streamlit application for library assessment workflows. The app help
 - Export reports as Markdown or PDF.
 - Detect and redact PII in retrieved context and generated outputs.
 - Review logs, errors, performance signals, and audit activity.
+
+## Streamlit Workflow Shell
+
+The Streamlit UI is organized around assessment work rather than implementation
+modules:
+
+- **Home**: operational dashboard, system status, attention queue, and recommended next steps.
+- **Data**: import, dataset management, PII review, metadata readiness, and indexing status.
+- **Analyze**: text feedback, metrics and trends, comparisons, charts, and modeling readiness.
+- **Ask**: natural-language question workbench over active datasets.
+- **Reports**: leadership reports, projects, evidence handoff, dashboard planning, and methods materials.
+- **Governance**: FAIR/CARE readiness and responsible-use reference material.
+- **Admin**: admin-only users, backups, model settings, PII rules, audit logs, and system health.
+
+See [Streamlit UI design record](docs/STREAMLIT_UI_DESIGN_RECORD.md) and
+[local-first small-team design record](docs/LOCAL_FIRST_SMALL_TEAM_DESIGN_RECORD.md)
+for the current product decisions and implementation roadmap.
 
 ## Repository Structure
 

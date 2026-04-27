@@ -10,6 +10,8 @@ This directory contains project documentation for users, developers, reviewers, 
 - [Changelog](CHANGELOG.md): notable project changes.
 - [Module interfaces](MODULE_INTERFACES.md): module-level API and responsibility overview.
 - [Dependency strategy](DEPENDENCY_STRATEGY.md): local-first dependency and model-loading guidance.
+- [Local-first small-team design record](LOCAL_FIRST_SMALL_TEAM_DESIGN_RECORD.md): current product, governance, privacy, reporting, and implementation decisions.
+- [Streamlit UI design record](STREAMLIT_UI_DESIGN_RECORD.md): workflow-oriented UI structure, report workspace, role-aware navigation, and UX roadmap.
 
 ## Data Documentation
 

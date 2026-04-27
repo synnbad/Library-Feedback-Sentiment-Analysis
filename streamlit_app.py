@@ -16,15 +16,18 @@ from modules import auth
 
 PAGE_REGISTRY = {
     "Home": ("ui.home_ui", "show_home_page"),
-    "Data Upload": ("ui.data_upload_ui", "show_data_upload_page"),
-    "Query Interface": ("ui.query_ui", "show_query_interface_page"),
-    "Qualitative Analysis": ("ui.qualitative_ui", "show_qualitative_analysis_page"),
-    "Quantitative Analysis": ("ui.quantitative_ui", "show_quantitative_analysis_page"),
-    "Visualizations": ("ui.visualization_ui", "show_visualizations_page"),
-    "Assessment Workspace": ("ui.assessment_workflow_ui", "show_assessment_workflow_page"),
-    "Report Generation": ("ui.report_ui", "show_report_generation_page"),
-    "Data Governance": ("ui.governance_ui", "show_data_governance_page"),
-    "Logs & Monitoring": ("ui.logs_ui", "show_logs_page"),
+    "Data": ("ui.data_ui", "show_data_page"),
+    "Analyze": ("ui.analyze_ui", "show_analyze_page"),
+    "Ask": ("ui.query_ui", "show_query_interface_page"),
+    "Reports": ("ui.reports_workflow_ui", "show_reports_page"),
+    "Governance": ("ui.governance_ui", "show_data_governance_page"),
+    "Admin": ("ui.admin_ui", "show_admin_page"),
+}
+
+ROLE_PAGES = {
+    "admin": list(PAGE_REGISTRY.keys()),
+    "analyst": ["Home", "Data", "Analyze", "Ask", "Reports", "Governance"],
+    "viewer": ["Home", "Reports", "Governance"],
 }
 
 
@@ -66,10 +69,16 @@ def _handle_logout() -> None:
 
 def show_main_app():
     """Display main application interface with navigation."""
+    role = auth.get_user_role(st.session_state.username)
+    available_pages = ROLE_PAGES.get(role, ROLE_PAGES["viewer"])
+    if st.session_state.get("navigation") not in available_pages:
+        st.session_state.navigation = available_pages[0]
+
     # Sidebar with navigation
     with st.sidebar:
         st.title("Library Assessment")
         st.markdown(f"**User:** {st.session_state.username}")
+        st.caption(f"Role: {role}")
         if st.button("Logout", use_container_width=True):
             _handle_logout()
         st.markdown("---")
@@ -77,7 +86,7 @@ def show_main_app():
         # Navigation menu
         page = st.radio(
             "Navigation",
-            list(PAGE_REGISTRY.keys()),
+            available_pages,
             key="navigation"
         )
 
