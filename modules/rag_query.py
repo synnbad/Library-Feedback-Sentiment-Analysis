@@ -243,7 +243,7 @@ def sync_indexing_status_from_chroma(dataset_ids: Optional[List[int]] = None) ->
         except Exception:
             continue
         if results.get("ids"):
-            execute_update(
+            updated_count = execute_update(
                 """
                 UPDATE datasets
                 SET indexing_status = 'completed',
@@ -254,7 +254,7 @@ def sync_indexing_status_from_chroma(dataset_ids: Optional[List[int]] = None) ->
                 """,
                 (datetime.now().isoformat(), dataset_id),
             )
-            synced += 1
+            synced += max(updated_count, 0)
     return synced
 
 

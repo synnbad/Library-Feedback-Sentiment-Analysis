@@ -764,7 +764,8 @@ def get_datasets() -> List[Dict[str, Any]]:
         """
         SELECT id, name, dataset_type, upload_date, row_count,
                title, description, source, keywords,
-               usage_notes, ethical_considerations, analysis_capabilities
+               usage_notes, ethical_considerations, analysis_capabilities,
+               indexing_status, indexing_error, indexed_at
         FROM datasets
         ORDER BY upload_date DESC
         """
