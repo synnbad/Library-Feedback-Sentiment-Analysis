@@ -32,6 +32,7 @@ This directory contains project documentation for users, developers, reviewers, 
 - [Project context](PROJECT_CONTEXT.md)
 - [Implementation summary](IMPLEMENTATION_SUMMARY.md)
 - [Final implementation report](FINAL_IMPLEMENTATION_REPORT.md)
+- [Library assessment system evaluation report](LIBRARY_ASSESSMENT_SYSTEM_EVALUATION_REPORT.md)
 - [Personal system report](PERSONAL_SYSTEM_REPORT.md)
 - [Testing summary](TESTING_SUMMARY.md)
 - [Course project summary](COURSE_PROJECT_SUMMARY.md)
