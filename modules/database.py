@@ -400,6 +400,20 @@ def init_database(db_path: Optional[str] = None) -> None:
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     """)
+
+    # Existing local databases may have older tables created before these columns
+    # existed. Add them before creating indexes that depend on them.
+    for table, column_def in (
+        ("users", "role TEXT DEFAULT 'analyst'"),
+        ("query_logs", "idempotency_key TEXT"),
+        ("pinned_insights", "idempotency_key TEXT"),
+        ("reports", "idempotency_key TEXT"),
+    ):
+        try:
+            cursor.execute(f"ALTER TABLE {table} ADD COLUMN {column_def}")
+        except sqlite3.OperationalError:
+            pass
+    cursor.execute("UPDATE users SET role = 'admin' WHERE username = 'admin'")
     
     # Create indexes for performance
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_datasets_type ON datasets(dataset_type)")
