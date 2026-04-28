@@ -4,7 +4,7 @@
 
 This document specifies requirements for an MVP (Minimum Viable Product) AI-powered NLP system for library assessment. The system is designed as a course final project that demonstrates core AI/NLP capabilities while remaining achievable in a 4-6 week timeframe.
 
-The MVP focuses on essential features: manual data upload, RAG-powered question answering, basic qualitative analysis, simple report generation, and basic visualizations. All processing happens locally to maintain FERPA compliance.
+The MVP focuses on essential features: manual data upload, RAG-powered question answering, basic qualitative analysis, simple report generation, and basic visualizations. All processing happens locally to support privacy-conscious local processing.
 
 ## Glossary
 
@@ -91,9 +91,9 @@ The MVP focuses on essential features: manual data upload, RAG-powered question 
 6. THE Visualization_Engine SHALL apply clear labels and titles to all charts
 7. THE Visualization_Engine SHALL use accessible color schemes with sufficient contrast
 
-### Requirement 6: FERPA Compliance and Local Processing
+### Requirement 6: Privacy-Conscious Local Processing and Local Processing
 
-**User Story:** As an Assessment Specialist, I want all AI processing to happen locally without sending data to external APIs, so that I maintain FERPA compliance and protect student privacy.
+**User Story:** As an Assessment Specialist, I want all AI processing to happen locally without sending data to external APIs, so that I support privacy-conscious local processing and protect student privacy.
 
 #### Acceptance Criteria
 
