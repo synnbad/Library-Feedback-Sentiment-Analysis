@@ -27,7 +27,7 @@ python -m ruff check .
 ## Python Version Policy
 
 - Supported Python: 3.10+
-- Development target: Python 3.13
+- Development target, not minimum: Python 3.13
 - Tool target versions: Python 3.10 syntax compatibility
 
 The project should avoid syntax that requires Python newer than 3.10 unless the
@@ -99,7 +99,7 @@ the commands were run with `python3` instead.
 ```text
 Python: Python 3.14.4 in this environment; project policy remains Python 3.10+
 compileall: python3 -m compileall modules ui tests passed
-pytest: python3 -m pytest passed, 247 passed, 1 warning, 187.77s
+pytest: python3 -m pytest passed, 247 passed, 1 warning, 182.01s
 ruff: python3 -m ruff check . passed
 warning: ChromaDB emits a Python 3.14 deprecation warning for asyncio.iscoroutinefunction
 ```

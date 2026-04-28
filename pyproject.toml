@@ -1,11 +1,29 @@
 [project]
-name = "library-assessment-decision-support"
+name = "library-assessment-decision-support-system"
 version = "1.0.0"
-description = "A local-first Streamlit application for small-team library assessment workflows"
+description = "A local-first Streamlit application for small-team library assessment workflows that supports dataset import, validation, qualitative and quantitative analysis, evidence-grounded question answering, reporting, and privacy-conscious governance."
 authors = [{name = "Library Assessment Team"}]
 readme = "README.md"
 requires-python = ">=3.10"
 license = {text = "MIT"}
+keywords = [
+    "library-assessment",
+    "streamlit",
+    "local-first",
+    "rag",
+    "privacy-conscious",
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: Web Environment",
+    "Intended Audience :: Education",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+]
 
 dependencies = [
     "streamlit>=1.31.0",

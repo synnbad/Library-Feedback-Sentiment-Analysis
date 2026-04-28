@@ -61,8 +61,8 @@ interpretation.
 The import UI accepts CSV, TSV, TXT, Excel `.xlsx`, and JSON files. Canonical CSV shapes remain the
 safest path for direct upload:
 
-| Dataset Type | Required Columns |
-|---|---|
+| Dataset type | Required columns |
+| --- | --- |
 | Survey | `response_date`, `question`, `response_text` |
 | Usage | `date`, `metric_name`, `metric_value` |
 | Circulation | `checkout_date`, `material_type`, `patron_type` |
@@ -105,7 +105,7 @@ stores, logs, exports, and generated evaluation runs are intentionally ignored b
 ## Requirements
 
 - Supported Python: 3.10+
-- Development target: Python 3.13
+- Development target, not minimum: Python 3.13
 - Ollama installed and running for local LLM features
 - Recommended local model: `llama3.2:3b`
 - Recommended RAM: 16 GB or more
@@ -221,8 +221,8 @@ docs/presentations/nlp_final_project_library_assessment_assistant.pptx
 Screenshots are not currently committed. The table below identifies recommended demo assets for a
 portfolio showcase without implying that those assets already exist in the repository.
 
-| Demo Asset | Status |
-|---|---|
+| Demo asset | Status |
+| --- | --- |
 | Home dashboard screenshot | Recommended before portfolio showcase |
 | Data import and indexing screenshot | Recommended before portfolio showcase |
 | Ask response with citations screenshot | Recommended before portfolio showcase |

@@ -1,6 +1,6 @@
 # Library Assessment Decision Support System - runtime and development dependencies
 # Supported Python: 3.10+
-# Development target: Python 3.13
+# Development target, not minimum: Python 3.13
 
 # Web Framework
 streamlit>=1.31.0
