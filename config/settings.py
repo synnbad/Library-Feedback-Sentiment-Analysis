@@ -16,7 +16,7 @@ class Settings:
     # Base paths
     BASE_DIR = Path(__file__).parent.parent
     DATA_DIR = BASE_DIR / "data"
-    EXPORTS_DIR = BASE_DIR / "exports"
+    EXPORTS_DIR = Path(os.getenv("EXPORTS_DIR", str(BASE_DIR / "exports")))
     
     # Database configuration
     DATABASE_PATH = os.getenv(
@@ -99,10 +99,10 @@ class Settings:
     
     @classmethod
     def ensure_directories(cls):
-        """Ensure required directories exist."""
-        cls.DATA_DIR.mkdir(exist_ok=True)
-        cls.EXPORTS_DIR.mkdir(exist_ok=True)
-        (cls.DATA_DIR / "chroma_db").mkdir(exist_ok=True)
+        """Create runtime directories on explicit application startup."""
+        Path(cls.DATABASE_PATH).expanduser().parent.mkdir(parents=True, exist_ok=True)
+        Path(cls.CHROMA_DB_PATH).expanduser().mkdir(parents=True, exist_ok=True)
+        Path(cls.EXPORTS_DIR).expanduser().mkdir(parents=True, exist_ok=True)
     
     @classmethod
     def get_ollama_model(cls) -> str:
@@ -138,9 +138,8 @@ class Settings:
         
         if cls.TOP_K_RETRIEVAL <= 0:
             return False, "TOP_K_RETRIEVAL must be positive"
+
+        if cls.SESSION_TIMEOUT_MINUTES < 0:
+            return False, "SESSION_TIMEOUT_MINUTES cannot be negative"
         
         return True, None
-
-
-# Initialize directories on import
-Settings.ensure_directories()
