@@ -12,6 +12,11 @@ from importlib import import_module
 import streamlit as st
 from config.settings import Settings
 from modules import auth
+from modules.session_policy import (
+    clear_session_activity,
+    mark_session_activity,
+    session_has_expired,
+)
 
 
 PAGE_REGISTRY = {
@@ -31,12 +36,11 @@ ROLE_PAGES = {
 }
 
 
-# Page configuration
 st.set_page_config(
     page_title="Library Assessment Assistant",
     page_icon=None,
     layout="wide",
-    initial_sidebar_state="expanded"
+    initial_sidebar_state="expanded",
 )
 
 
@@ -63,18 +67,33 @@ def _handle_logout() -> None:
         if key in st.session_state:
             del st.session_state[key]
 
+    clear_session_activity(st.session_state)
     auth.logout_user(st.session_state)
     st.rerun()
 
 
-def show_main_app():
-    """Display main application interface with navigation."""
+def _enforce_session_timeout() -> bool:
+    """Expire inactive authenticated sessions before protected pages render."""
+    if not auth.is_authenticated(st.session_state):
+        return False
+
+    if session_has_expired(st.session_state, Settings.SESSION_TIMEOUT_MINUTES):
+        clear_session_activity(st.session_state)
+        auth.logout_user(st.session_state)
+        st.warning("Your session expired due to inactivity. Please sign in again.")
+        return True
+
+    mark_session_activity(st.session_state)
+    return False
+
+
+def show_main_app() -> None:
+    """Display main application interface with role-aware navigation."""
     role = auth.get_user_role(st.session_state.username)
     available_pages = ROLE_PAGES.get(role, ROLE_PAGES["viewer"])
     if st.session_state.get("navigation") not in available_pages:
         st.session_state.navigation = available_pages[0]
 
-    # Sidebar with navigation
     with st.sidebar:
         st.title("Library Assessment")
         st.markdown(f"**User:** {st.session_state.username}")
@@ -83,20 +102,21 @@ def show_main_app():
             _handle_logout()
         st.markdown("---")
 
-        # Navigation menu
         page = st.radio(
             "Navigation",
             available_pages,
-            key="navigation"
+            key="navigation",
         )
 
     module_name, function_name = PAGE_REGISTRY[page]
     _render_ui(module_name, function_name)
 
 
-def main():
-    """Main application entry point."""
+def main() -> None:
+    """Initialize runtime resources and render the authenticated application."""
     from modules.database import init_database, migrate_database
+
+    Settings.ensure_directories()
 
     try:
         init_database()
@@ -109,12 +129,16 @@ def main():
     except Exception as exc:
         st.warning(f"Database migration could not be completed automatically: {exc}")
 
-    # Initialize session state for authentication
     auth.init_session_state(st.session_state)
+
+    if _enforce_session_timeout():
+        _render_ui("ui.auth_ui", "show_login_page")
+        return
 
     if not auth.is_authenticated(st.session_state):
         if Settings.ENABLE_DEMO_LOGIN:
             auth.login_user(st.session_state, Settings.DEMO_USERNAME)
+            mark_session_activity(st.session_state)
             st.warning(
                 f"Demo login mode is enabled for `{Settings.DEMO_USERNAME}`. "
                 "Disable `ENABLE_DEMO_LOGIN` to require real authentication."
